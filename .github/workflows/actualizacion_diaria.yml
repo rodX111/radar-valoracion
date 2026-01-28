@@ -1,0 +1,44 @@
+name: Actualizar Datos de Bolsa
+
+# 1. ¿Cuándo se ejecuta?
+on:
+  schedule:
+    # Cron: Se ejecuta a las 10:00 UTC (aprox 4:00 AM Guatemala/México) de Lunes a Viernes
+    - cron: '0 10 * * 1-5'
+  workflow_dispatch: # Esto permite que tengas un botón para ejecutarlo manual si quieres
+
+# 2. ¿Qué permisos tiene? (Necesita permiso de escritura para guardar el CSV)
+permissions:
+  contents: write
+
+# 3. Los pasos del trabajo
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # A. Descargar tu código
+      - name: Bajar código del repositorio
+        uses: actions/checkout@v4
+
+      # B. Instalar Python
+      - name: Instalar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      # C. Instalar librerías (yfinance, pandas, etc.)
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      # D. ¡CORRER TU SCRIPT DE VALORACIÓN!
+      - name: Ejecutar análisis de valoración
+        run: python update_data.py
+
+      # E. Guardar el nuevo CSV en el repositorio
+      - name: Guardar y subir cambios (Commit & Push)
+        run: |
+          git config --global user.name 'Robot Inversor'
+          git config --global user.email 'robot@tu-repo.com'
+          git add resultados_valoracion_filtrados.csv
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Actualización automática de precios" && git push)
