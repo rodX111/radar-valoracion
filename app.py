@@ -42,8 +42,8 @@ st.subheader(f"🏆 Oportunidades Detectadas ({len(df_filtrado)})")
 cols_mostrar = ['Ticker', 'Empresa', 'Precio', 'Valor Justo', 'Upside Potencial', 'Decisión', 'WACC']
 
 # Verificamos si la columna 'Empresa' existe (por si el CSV viejo aún no se actualizó)
-#if 'Empresa' not in df_filtrado.columns:
-#    df_filtrado['Empresa'] = df_filtrado['Ticker'] # Parche temporal
+if 'Empresa' not in df_filtrado.columns:
+    df_filtrado['Empresa'] = df_filtrado['Ticker'] # Parche temporal
 
 st.dataframe(
     df_filtrado[cols_mostrar].style.format({
@@ -105,4 +105,5 @@ if seleccion_etiqueta:
     colZ.metric("Riesgo (WACC)", f"{dato['WACC']:.1%}", help="Costo del capital.")
 
     st.success(f"📌 **Conclusión:** Según estos datos, **{dato['Empresa']}** debería valer **${dato['Valor Justo']:.2f}**. Como cotiza a **${dato['Precio']:.2f}**, tiene un potencial de **{dato['Upside Potencial']:.1%}**.")
+
 
