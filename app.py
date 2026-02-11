@@ -104,6 +104,32 @@ if seleccion_etiqueta:
     colY.metric("Crecimiento (g)", f"{dato['Crecimiento (g)']:.1%}", help="Crecimiento anual estimado.")
     colZ.metric("Riesgo (WACC)", f"{dato['WACC']:.1%}", help="Costo del capital.")
 
-    st.success(f"📌 **Conclusión:** Según estos datos, **{dato['Empresa']}** debería valer **${dato['Valor Justo']:.2f}**. Como cotiza a **${dato['Precio']:.2f}**, tiene un potencial de **{dato['Upside Potencial']:.1%}**.")
+# ... (código anterior de FCF, g, WACC) ...
+
+    st.divider()
+
+    # --- CONCLUSIÓN FINAL CON MARGEN DE SEGURIDAD ---
+    st.subheader("🎯 Veredicto Final")
+    
+    # Recuperamos el Precio Max Compra (si existe, si no lo calculamos al vuelo por seguridad)
+    precio_max = dato.get('Precio Max Compra', dato['Valor Justo'] * 0.8)
+
+    col_final1, col_final2, col_final3 = st.columns(3)
+
+    col_final1.metric("Valor Justo (Teórico)", f"${dato['Valor Justo']:.2f}", 
+                      help="Lo que vale la empresa si tus estimaciones son perfectas.")
+
+    col_final2.metric("Margen de Seguridad", "20%", 
+                      help="Descuento que exigimos por si nos equivocamos en los cálculos.")
+
+    col_final3.metric("Precio MÁXIMO de Compra", f"${precio_max:.2f}", 
+                      delta="Tu Precio Límite",
+                      help="No pagues ni un centavo más de esto.")
+
+    # Mensaje de decisión
+    if dato['Precio'] < precio_max:
+        st.success(f"✅ **¡LUZ VERDE!** La acción cotiza a **${dato['Precio']:.2f}**, que está por debajo de tu precio límite de **${precio_max:.2f}**. Es una oportunidad de compra con margen de seguridad.")
+    else:
+        st.warning(f"⚠️ **PRECAUCIÓN:** La acción cotiza a **${dato['Precio']:.2f}**. Aunque vale **${dato['Valor Justo']:.2f}**, no tienes suficiente margen de seguridad (necesitas que baje a **${precio_max:.2f}**).")
 
 
