@@ -2,6 +2,7 @@ import yfinance as yf
 import pandas as pd
 import requests
 import numpy as np
+from datetime import date  # <--- AGREGA ESTO AQUÍ ARRIBA
 
 # --- CONFIGURACIÓN ---
 MARKET_RETURN = 0.08
@@ -146,7 +147,12 @@ if not df_final.empty:
     df_final = df_final[df_final['WACC'] >= 0.05]
     df_final = df_final[df_final['Upside Potencial'] <= 2.0]
     df_final = df_final[df_final['Upside Potencial'] > 0]
+
+    # --- NUEVO: ESTAMPAR LA FECHA DE HOY ---
+    df_final['Ultima Actualizacion'] = date.today().strftime('%d/%m/%Y')
+    
     df_final.to_csv('resultados_valoracion_filtrados.csv', index=False)
     print("✅ ¡Datos actualizados exitosamente!")
+
 
 
