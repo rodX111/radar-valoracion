@@ -23,6 +23,7 @@ def valorar_empresa(ticker_symbol):
         if 'currentPrice' not in info or 'marketCap' not in info:
             return None
 
+        nombre_oficial = info.get('longName', ticker_symbol) # Si no encuentra nombre, usa el Ticker
         precio_actual = info['currentPrice']
         market_cap = info['marketCap']
         beta = info.get('beta', 1.0)
@@ -96,6 +97,7 @@ def valorar_empresa(ticker_symbol):
         # --- RETORNO CON DATOS DETALLADOS (NUEVO) ---
         return {
             "Ticker": ticker_symbol,
+            "Empresa": nombre_oficial,  # <--- ¡AGREGAMOS ESTA LÍNEA!
             "Precio": precio_actual,
             "Valor Justo": valor_intrinseco,
             "Upside Potencial": upside,
@@ -145,3 +147,4 @@ if not df_final.empty:
     df_final = df_final[df_final['Upside Potencial'] > 0]
     df_final.to_csv('resultados_valoracion_filtrados.csv', index=False)
     print("✅ ¡Datos actualizados exitosamente!")
+
