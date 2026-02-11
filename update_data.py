@@ -100,6 +100,7 @@ def valorar_empresa(ticker_symbol):
             "Empresa": nombre_oficial,  # <--- ¡AGREGAMOS ESTA LÍNEA!
             "Precio": precio_actual,
             "Valor Justo": valor_intrinseco,
+            "Precio Max Compra": precio_compra_max,
             "Upside Potencial": upside,
             "Decisión": decision,
             "WACC": wacc,
@@ -147,4 +148,5 @@ if not df_final.empty:
     df_final = df_final[df_final['Upside Potencial'] > 0]
     df_final.to_csv('resultados_valoracion_filtrados.csv', index=False)
     print("✅ ¡Datos actualizados exitosamente!")
+
 
