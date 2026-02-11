@@ -4,11 +4,12 @@ import pandas as pd
 st.set_page_config(page_title="Radar de Valor", page_icon="🎯", layout="wide")
 
 # --- TÍTULO ---
-st.title("🎯 El Radar de Valor de Rodrigo")
+st.title("🎯 El Radar de Valor Democratizado")
 st.markdown("**Objetivo:** Encontrar empresas sólidas del S&P 500 que cotizan por debajo de su valor real.")
 
 # --- CARGAR DATOS ---
-@st.cache_data
+
+@st.cache_data(ttl=3600) # Recuerda el ttl para que refresque cada hora
 def cargar_datos():
     try:
         return pd.read_csv("resultados_valoracion_filtrados.csv")
@@ -18,9 +19,17 @@ def cargar_datos():
 df = cargar_datos()
 
 if df.empty:
-    st.error("⚠️ Aún no hay datos. Espera a que el robot termine de ejecutarse.")
+    st.error("⚠️ Aún no hay datos.")
     st.stop()
 
+# --- MOSTRAR FECHA DE ACTUALIZACIÓN (NUEVO) ---
+# Leemos la fecha de la primera fila (ya que todas tienen la misma)
+if 'Ultima Actualizacion' in df.columns:
+    fecha_data = df['Ultima Actualizacion'].iloc[0]
+    st.info(f"📅 **Datos actualizados al:** {fecha_data}")
+else:
+    st.warning("⚠️ Fecha no disponible (esperando próxima actualización del robot).")
+    
 # --- FILTROS ---
 st.sidebar.header("🔍 Filtros")
 min_upside = st.sidebar.slider("Upside Mínimo (%)", 0, 100, 10)
@@ -131,5 +140,6 @@ if seleccion_etiqueta:
         st.success(f"✅ **¡LUZ VERDE!** La acción cotiza a **${dato['Precio']:.2f}**, que está por debajo de tu precio límite de **${precio_max:.2f}**. Es una oportunidad de compra con margen de seguridad.")
     else:
         st.warning(f"⚠️ **PRECAUCIÓN:** La acción cotiza a **${dato['Precio']:.2f}**. Aunque vale **${dato['Valor Justo']:.2f}**, no tienes suficiente margen de seguridad (necesitas que baje a **${precio_max:.2f}**).")
+
 
 
