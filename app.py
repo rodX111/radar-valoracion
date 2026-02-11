@@ -4,7 +4,7 @@ import pandas as pd
 st.set_page_config(page_title="Radar de Valor", page_icon="🎯", layout="wide")
 
 # --- TÍTULO ---
-st.title("🎯 El Radar de Valor Democratizado")
+st.title("🎯 El Radar de Valor de Rodrigo")
 st.markdown("**Objetivo:** Encontrar empresas sólidas del S&P 500 que cotizan por debajo de su valor real.")
 
 # --- CARGAR DATOS ---
@@ -24,63 +24,84 @@ if df.empty:
 # --- FILTROS ---
 st.sidebar.header("🔍 Filtros")
 min_upside = st.sidebar.slider("Upside Mínimo (%)", 0, 100, 10)
-ticker_buscar = st.sidebar.text_input("Buscar Ticker", "").upper()
+ticker_buscar = st.sidebar.text_input("Buscar Ticker o Empresa", "").upper()
 
 df_filtrado = df[df['Upside Potencial'] > (min_upside/100)]
+
 if ticker_buscar:
-    df_filtrado = df_filtrado[df_filtrado['Ticker'].str.contains(ticker_buscar)]
+    # Ahora buscamos tanto en el Ticker como en el Nombre de la Empresa
+    df_filtrado = df_filtrado[
+        df_filtrado['Ticker'].str.contains(ticker_buscar) | 
+        df_filtrado['Empresa'].str.upper().str.contains(ticker_buscar)
+    ]
 
 # --- TABLA PRINCIPAL ---
 st.subheader(f"🏆 Oportunidades Detectadas ({len(df_filtrado)})")
+
+# Reordenamos las columnas para poner el Nombre al principio
+cols_mostrar = ['Ticker', 'Empresa', 'Precio', 'Valor Justo', 'Upside Potencial', 'Decisión', 'WACC']
+
+# Verificamos si la columna 'Empresa' existe (por si el CSV viejo aún no se actualizó)
+if 'Empresa' not in df_filtrado.columns:
+    df_filtrado['Empresa'] = df_filtrado['Ticker'] # Parche temporal
+
 st.dataframe(
-    df_filtrado[['Ticker', 'Precio', 'Valor Justo', 'Upside Potencial', 'Decisión', 'WACC']].style.format({
+    df_filtrado[cols_mostrar].style.format({
         "Precio": "${:.2f}",
         "Valor Justo": "${:.2f}",
         "Upside Potencial": "{:.1%}",
         "WACC": "{:.1%}"
-    })
+    }),
+    use_container_width=True
 )
 
-# --- 💎 SECCIÓN CAJA DE CRISTAL (NUEVO) ---
+# --- 💎 SECCIÓN CAJA DE CRISTAL ---
 st.markdown("---")
 st.header("💎 Caja de Cristal: ¿Por qué vale eso?")
-st.info("Selecciona una empresa para ver el desglose matemático paso a paso. Pasa el mouse por los signos '?' para ver las fórmulas.")
+st.info("Selecciona una empresa para ver el desglose matemático paso a paso.")
 
-# Selector de empresa
-lista_empresas = df_filtrado['Ticker'].tolist()
-seleccion = st.selectbox("Selecciona empresa a auditar:", lista_empresas)
+# Creamos una lista bonita "KO - The Coca-Cola Company" para el selector
+df_filtrado['Etiqueta_Selector'] = df_filtrado['Ticker'] + " - " + df_filtrado['Empresa']
+lista_empresas = df_filtrado['Etiqueta_Selector'].tolist()
 
-if seleccion:
-    # Obtener datos de la fila seleccionada
-    dato = df_filtrado[df_filtrado['Ticker'] == seleccion].iloc[0]
+seleccion_etiqueta = st.selectbox("Selecciona empresa a auditar:", lista_empresas)
+
+if seleccion_etiqueta:
+    # Recuperamos el Ticker original separando el texto
+    ticker_seleccionado = seleccion_etiqueta.split(" - ")[0]
+    
+    # Obtener datos usando el Ticker
+    dato = df_filtrado[df_filtrado['Ticker'] == ticker_seleccionado].iloc[0]
+
+    st.subheader(f"Auditoría de: {dato['Empresa']} ({dato['Ticker']})")
 
     # PASO 1: DEUDA
-    st.subheader("1️⃣ Paso 1: Deuda Real (Enterprise Value)")
+    st.markdown("##### 1️⃣ Paso 1: Deuda Real (Enterprise Value)")
     col1, col2, col3 = st.columns(3)
     
-    col1.metric("Deuda Total", f"${dato['Deuda Total']:,.0f}", help="Dinero total que debe la empresa a bancos y acreedores.")
+    col1.metric("Deuda Total", f"${dato['Deuda Total']:,.0f}", help="Dinero total que debe la empresa.")
     col2.metric("(-) Total Cash", f"${dato['Total Cash']:,.0f}", help="Efectivo disponible en caja.")
     col3.metric("(=) Deuda Neta", f"${dato['Deuda Neta']:,.0f}", delta="Pasivo Real", delta_color="inverse",
                 help=f"Fórmula: {dato['Deuda Total']:,.0f} - {dato['Total Cash']:,.0f}")
     
-    st.write("---")
+    st.divider()
     
     # PASO 2: VALOR TOTAL
     colA, colB, colC = st.columns(3)
     colA.metric("Market Cap", f"${dato['Market Cap']:,.0f}", help="Precio Acción x Número de Acciones.")
     colB.metric("(+) Deuda Neta", f"${dato['Deuda Neta']:,.0f}", help="La deuda que asume el comprador.")
     colC.metric("(=) Enterprise Value", f"${dato['Enterprise Value']:,.0f}", 
-                help=f"Lo que cuesta comprar la empresa entera. Fórmula: Market Cap + Deuda Neta")
+                help="Lo que cuesta comprar la empresa entera. (Market Cap + Deuda Neta)")
 
-    st.write("---")
+    st.divider()
 
     # PASO 3: WACC Y FLUJO
-    st.subheader("2️⃣ Paso 2: La Fórmula Maestra")
+    st.markdown("##### 2️⃣ Paso 2: La Fórmula Maestra")
     st.latex(r"Valor = \frac{FCF \times (1 + g)}{WACC - g}")
     
     colX, colY, colZ = st.columns(3)
-    colX.metric("Flujo de Caja (FCF)", f"${dato['FCF']:,.0f}", help="Dinero libre que genera el negocio tras pagar gastos e inversiones.")
-    colY.metric("Crecimiento (g)", f"{dato['Crecimiento (g)']:.1%}", help="Cuánto esperamos que crezca la empresa anualmente.")
-    colZ.metric("Riesgo (WACC)", f"{dato['WACC']:.1%}", help="Costo del capital. Si el retorno es menor a esto, destruye valor.")
+    colX.metric("Flujo de Caja (FCF)", f"${dato['FCF']:,.0f}", help="Dinero libre que genera el negocio.")
+    colY.metric("Crecimiento (g)", f"{dato['Crecimiento (g)']:.1%}", help="Crecimiento anual estimado.")
+    colZ.metric("Riesgo (WACC)", f"{dato['WACC']:.1%}", help="Costo del capital.")
 
-    st.success(f"📌 **Conclusión:** Según estos datos, **{seleccion}** debería valer **${dato['Valor Justo']:.2f}**. Como cotiza a **${dato['Precio']:.2f}**, tiene un potencial de **{dato['Upside Potencial']:.1%}**.")
+    st.success(f"📌 **Conclusión:** Según estos datos, **{dato['Empresa']}** debería valer **${dato['Valor Justo']:.2f}**. Como cotiza a **${dato['Precio']:.2f}**, tiene un potencial de **{dato['Upside Potencial']:.1%}**.")
