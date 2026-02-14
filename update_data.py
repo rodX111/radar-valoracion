@@ -2,17 +2,21 @@ import yfinance as yf
 import pandas as pd
 import requests
 import numpy as np
-from datetime import date  # <--- AGREGA ESTO AQUÍ ARRIBA
+from datetime import date
 
 # --- CONFIGURACIÓN ---
 MARKET_RETURN = 0.08
 GROWTH_CAP = 0.03
 MARGEN_SEGURIDAD = 0.20
 
-# Tasa libre de riesgo
+# Tasa libre de riesgo (Intentamos obtenerla, si falla usamos 4.2%)
 try:
     tnx = yf.Ticker("^TNX")
-    RISK_FREE_RATE = tnx.history(period="1d")['Close'].iloc[-1] / 100
+    hist = tnx.history(period="1d")
+    if not hist.empty:
+        RISK_FREE_RATE = hist['Close'].iloc[-1] / 100
+    else:
+        RISK_FREE_RATE = 0.042
 except:
     RISK_FREE_RATE = 0.042
 
@@ -24,7 +28,10 @@ def valorar_empresa(ticker_symbol):
         if 'currentPrice' not in info or 'marketCap' not in info:
             return None
 
-        nombre_oficial = info.get('longName', ticker_symbol) # Si no encuentra nombre, usa el Ticker
+        # --- DATOS GENERALES ---
+        nombre_oficial = info.get('longName', ticker_symbol)
+        sector = info.get('sector', 'Otros') # <--- NUEVO: Capturamos el Sector
+        
         precio_actual = info['currentPrice']
         market_cap = info['marketCap']
         beta = info.get('beta', 1.0)
@@ -36,7 +43,7 @@ def valorar_empresa(ticker_symbol):
         if balance.empty or resultados.empty or flujo.empty:
             return None
 
-        # 1. DEUDA
+        # 1. DEUDA Y EV
         try:
             deuda_total = balance.loc['Total Debt'].iloc[0]
         except KeyError:
@@ -56,8 +63,8 @@ def valorar_empresa(ticker_symbol):
         
         try:
             interest_expense = abs(resultados.loc['Interest Expense'].iloc[0])
-            tax_provision = resultados.loc['Tax Provision'].iloc[0]
             pretax_income = resultados.loc['Pretax Income'].iloc[0]
+            tax_provision = resultados.loc['Tax Provision'].iloc[0]
             tax_rate = tax_provision / pretax_income if pretax_income != 0 else 0.21
             if tax_rate < 0 or tax_rate > 0.5: tax_rate = 0.21
             
@@ -74,7 +81,7 @@ def valorar_empresa(ticker_symbol):
         g = info.get('earningsGrowth', 0.03)
         if g is None or g > GROWTH_CAP: g = GROWTH_CAP
             
-        if wacc <= g: return None
+        if wacc <= g: return None # Gordon no funciona si g > WACC
 
         try:
             fcf = flujo.loc['Free Cash Flow'].iloc[0]
@@ -85,27 +92,27 @@ def valorar_empresa(ticker_symbol):
             
         if fcf <= 0: return None
 
-        # 4. VALORACIÓN
+        # 4. VALORACIÓN FINAL
         valor_empresa_total = (fcf * (1 + g)) / (wacc - g)
         valor_patrimonio = valor_empresa_total - deuda_neta
         acciones = info.get('sharesOutstanding', 1)
         valor_intrinseco = valor_patrimonio / acciones
         
         precio_compra_max = valor_intrinseco * (1 - MARGEN_SEGURIDAD)
+        
         decision = "COMPRA FUERTE" if precio_actual < precio_compra_max else "MANTENER/VENTA"
         upside = (valor_intrinseco - precio_actual) / precio_actual
 
-        # --- RETORNO CON DATOS DETALLADOS (NUEVO) ---
         return {
             "Ticker": ticker_symbol,
-            "Empresa": nombre_oficial,  # <--- ¡AGREGAMOS ESTA LÍNEA!
+            "Empresa": nombre_oficial,
+            "Sector": sector,  # <--- GUARDAMOS EL SECTOR
             "Precio": precio_actual,
             "Valor Justo": valor_intrinseco,
             "Precio Max Compra": precio_compra_max,
             "Upside Potencial": upside,
             "Decisión": decision,
             "WACC": wacc,
-            # Nuevos datos para la Caja de Cristal:
             "Deuda Total": deuda_total,
             "Total Cash": total_cash,
             "Deuda Neta": deuda_neta,
@@ -121,7 +128,7 @@ def valorar_empresa(ticker_symbol):
     except Exception as e:
         return None
 
-# --- EJECUCIÓN ---
+# --- EJECUCIÓN PRINCIPAL ---
 print("Descargando lista S&P 500...")
 headers = {"User-Agent": "Mozilla/5.0"}
 try:
@@ -153,6 +160,3 @@ if not df_final.empty:
     
     df_final.to_csv('resultados_valoracion_filtrados.csv', index=False)
     print("✅ ¡Datos actualizados exitosamente!")
-
-
-
