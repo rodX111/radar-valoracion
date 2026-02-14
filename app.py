@@ -6,7 +6,7 @@ import plotly.express as px
 st.set_page_config(page_title="Radar de Valor", page_icon="🎯", layout="wide")
 
 # --- TÍTULO PRINCIPAL ---
-st.title("🎯 El Radar de Valor de Rodrigo")
+st.title("🎯 El Radar de Valor Democratizado")
 st.markdown("**Objetivo:** Encontrar empresas sólidas del S&P 500 que cotizan por debajo de su valor real.")
 
 # --- CARGAR DATOS ---
@@ -152,3 +152,4 @@ with tab2:
         
     else:
         st.info("⚠️ Aún no se han cargado los datos de Sectores. Espera a la próxima actualización del robot.")
+
