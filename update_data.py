@@ -203,24 +203,25 @@ for i, ticker in enumerate(tickers):
         # --- NUEVA PAUSA ARTIFICIAL (ANTI-BLOQUEOS) ---
         time.sleep(0.5) 
             
-    print("\n✅ Análisis completado.")
+print("\n✅ Análisis completado.")
     
-    df_final = pd.DataFrame(resultados)
+df_final = pd.DataFrame(resultados)
 
-    # Filtros de Calidad y Guardado
-    if not df_final.empty:
-        # Filtramos basura: WACC lógico y Upside no infinito
-        df_final = df_final[df_final['WACC'] >= 0.04] 
-        df_final = df_final[df_final['Upside Potencial'] <= 3.0] # Descartar errores de >300% upside (suelen ser fallos de datos)
-        df_final = df_final[df_final['Upside Potencial'] > 0]
+# Filtros de Calidad y Guardado
+if not df_final.empty:
+    # Filtramos basura: WACC lógico y Upside no infinito
+    df_final = df_final[df_final['WACC'] >= 0.04] 
+    df_final = df_final[df_final['Upside Potencial'] <= 3.0] # Descartar errores de >300% upside (suelen ser fallos de datos)
+    df_final = df_final[df_final['Upside Potencial'] > 0]
         
-        # Agregamos Fecha
-        df_final['Ultima Actualizacion'] = date.today().strftime('%d/%m/%Y')
+    # Agregamos Fecha
+    df_final['Ultima Actualizacion'] = date.today().strftime('%d/%m/%Y')
         
-        # Guardamos
-        df_final.to_csv('resultados_valoracion_filtrados.csv', index=False)
-        print(f"💾 Guardado: {len(df_final)} oportunidades encontradas.")
-    else:
-        print("⚠️ No se encontraron oportunidades que cumplan los criterios.")
+    # Guardamos
+    df_final.to_csv('resultados_valoracion_filtrados.csv', index=False)
+    print(f"💾 Guardado: {len(df_final)} oportunidades encontradas.")
+else:
+    print("⚠️ No se encontraron oportunidades que cumplan los criterios.")
+
 
 
