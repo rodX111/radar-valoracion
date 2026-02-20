@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import numpy as np
 from datetime import date
+import time  # <--- NUEVO: Librería para controlar el tiempo
 
 # ==========================================
 # 1. CONFIGURACIÓN Y CONSTANTES
@@ -192,12 +193,15 @@ if __name__ == "__main__":
     
     print(f"🚀 Iniciando análisis de {total} empresas del S&P 1500...")
     
-    for i, ticker in enumerate(tickers):
-        print(f"[{i+1}/{total}] Analizando {ticker}...", end="\r") # Progreso en una línea
+for i, ticker in enumerate(tickers):
+        print(f"[{i+1}/{total}] Analizando {ticker}...", end="\r") 
         
         datos = valorar_empresa(ticker)
         if datos:
             resultados.append(datos)
+            
+        # --- NUEVA PAUSA ARTIFICIAL (ANTI-BLOQUEOS) ---
+        time.sleep(0.5) 
             
     print("\n✅ Análisis completado.")
     
@@ -218,4 +222,5 @@ if __name__ == "__main__":
         print(f"💾 Guardado: {len(df_final)} oportunidades encontradas.")
     else:
         print("⚠️ No se encontraron oportunidades que cumplan los criterios.")
+
 
