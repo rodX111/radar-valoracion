@@ -23,22 +23,30 @@ HEADERS = {
 def obtener_todos_los_tickers():
     tickers = []
     
+    # El "disfraz" para que Wikipedia nos deje entrar
+    HEADERS = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    
     try:
         print("📡 Descargando lista S&P 500 (Gigantes)...")
-        sp500 = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')[0]
+        res_500 = requests.get('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies', headers=HEADERS)
+        sp500 = pd.read_html(res_500.text)[0]
         tickers.extend(sp500['Symbol'].tolist())
         
         print("📡 Descargando lista S&P 400 (Medianas)...")
-        sp400 = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_400_companies')[0]
+        res_400 = requests.get('https://en.wikipedia.org/wiki/List_of_S%26P_400_companies', headers=HEADERS)
+        sp400 = pd.read_html(res_400.text)[0]
         tickers.extend(sp400['Symbol'].tolist())
 
         print("📡 Descargando lista S&P 600 (Pequeñas)...")
-        sp600 = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_600_companies')[0]
+        res_600 = requests.get('https://en.wikipedia.org/wiki/List_of_S%26P_600_companies', headers=HEADERS)
+        sp600 = pd.read_html(res_600.text)[0]
         tickers.extend(sp600['Symbol'].tolist())
         
         # Limpieza: Reemplazar puntos por guiones (BRK.B -> BRK-B) y eliminar duplicados
         tickers = [t.replace('.', '-') for t in tickers]
-        tickers = list(set(tickers)) # Eliminar duplicados si los hubiera
+        tickers = list(set(tickers)) # Eliminar duplicados
         
         print(f"✅ Total de empresas a analizar: {len(tickers)}")
         return tickers
@@ -210,3 +218,4 @@ if __name__ == "__main__":
         print(f"💾 Guardado: {len(df_final)} oportunidades encontradas.")
     else:
         print("⚠️ No se encontraron oportunidades que cumplan los criterios.")
+
