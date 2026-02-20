@@ -4,109 +4,149 @@ import requests
 import numpy as np
 from datetime import date
 
-# --- CONFIGURACIÓN ---
-MARKET_RETURN = 0.08
-GROWTH_CAP = 0.03
-MARGEN_SEGURIDAD = 0.20
+# ==========================================
+# 1. CONFIGURACIÓN Y CONSTANTES
+# ==========================================
+TASA_LIBRE_RIESGO = 0.042  # 4.2% (Bono a 10 años USA)
+PRIMA_RIESGO_MERCADO = 0.05  # 5.0%
+TASA_CRECIMIENTO_TERMINAL = 0.025  # 2.5%
+MARGEN_SEGURIDAD = 0.20  # 20%
 
-# Tasa libre de riesgo (Intentamos obtenerla, si falla usamos 4.2%)
-try:
-    tnx = yf.Ticker("^TNX")
-    hist = tnx.history(period="1d")
-    if not hist.empty:
-        RISK_FREE_RATE = hist['Close'].iloc[-1] / 100
-    else:
-        RISK_FREE_RATE = 0.042
-except:
-    RISK_FREE_RATE = 0.042
+# Headers para evitar bloqueo de Wikipedia
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+}
 
+# ==========================================
+# 2. OBTENER UNIVERSO DE EMPRESAS (S&P 1500)
+# ==========================================
+def obtener_todos_los_tickers():
+    tickers = []
+    
+    try:
+        print("📡 Descargando lista S&P 500 (Gigantes)...")
+        sp500 = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')[0]
+        tickers.extend(sp500['Symbol'].tolist())
+        
+        print("📡 Descargando lista S&P 400 (Medianas)...")
+        sp400 = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_400_companies')[0]
+        tickers.extend(sp400['Symbol'].tolist())
+
+        print("📡 Descargando lista S&P 600 (Pequeñas)...")
+        sp600 = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_600_companies')[0]
+        tickers.extend(sp600['Symbol'].tolist())
+        
+        # Limpieza: Reemplazar puntos por guiones (BRK.B -> BRK-B) y eliminar duplicados
+        tickers = [t.replace('.', '-') for t in tickers]
+        tickers = list(set(tickers)) # Eliminar duplicados si los hubiera
+        
+        print(f"✅ Total de empresas a analizar: {len(tickers)}")
+        return tickers
+
+    except Exception as e:
+        print(f"⚠️ Error descargando listas: {e}")
+        return []
+
+# ==========================================
+# 3. MOTOR DE VALORACIÓN (Con Blindaje)
+# ==========================================
 def valorar_empresa(ticker_symbol):
     try:
+        # Descarga de datos
         empresa = yf.Ticker(ticker_symbol)
         info = empresa.info
         
+        # --- FILTRO 1: DATOS CRÍTICOS FALTANTES ---
+        # Si no hay precio o Market Cap, abortamos misión con esta empresa.
         if 'currentPrice' not in info or 'marketCap' not in info:
             return None
 
         # --- DATOS GENERALES ---
         nombre_oficial = info.get('longName', ticker_symbol)
-        sector = info.get('sector', 'Otros') # <--- NUEVO: Capturamos el Sector
+        sector = info.get('sector', 'Desconocido') # Capturamos Sector
         
         precio_actual = info['currentPrice']
         market_cap = info['marketCap']
         beta = info.get('beta', 1.0)
-
-        balance = empresa.balance_sheet
-        resultados = empresa.financials
-        flujo = empresa.cashflow
         
-        if balance.empty or resultados.empty or flujo.empty:
-            return None
+        # --- DATOS FINANCIEROS (Con valores por defecto si fallan) ---
+        deuda_total = info.get('totalDebt', 0)
+        if deuda_total is None: deuda_total = 0
+            
+        total_cash = info.get('totalCash', 0)
+        if total_cash is None: total_cash = 0
+            
+        ebitda = info.get('ebitda', 0)
+        shares_outstanding = info.get('sharesOutstanding', 0)
+        
+        # Flujo de Caja Libre (FCF)
+        fcf = info.get('freeCashflow')
+        if fcf is None:
+            # Plan B: Calcularlo manualmente si Yahoo no lo da directo
+            operating_cashflow = info.get('operatingCashflow', 0)
+            capex = info.get('capitalExpenditures', 0) # Suele venir negativo
+            if operating_cashflow and capex:
+                fcf = operating_cashflow + capex # Se suma porque capex es negativo
+            else:
+                return None # Si no hay datos de flujo, no podemos valorar
 
-        # 1. DEUDA Y EV
-        try:
-            deuda_total = balance.loc['Total Debt'].iloc[0]
-        except KeyError:
-            try:
-                deuda_total = balance.loc['Total Debt And Capital Lease Obligation'].iloc[0]
-            except KeyError:
-                deuda_total = 0
-
-        total_cash = info.get("totalCash", 0)
+        # --- CÁLCULOS ---
         deuda_neta = deuda_total - total_cash
         enterprise_value = market_cap + deuda_neta
         
-        if enterprise_value <= 0: return None
-
-        # 2. WACC
-        ke = RISK_FREE_RATE + beta * (MARKET_RETURN - RISK_FREE_RATE)
+        # Costo del Capital (Ke) - CAPM
+        ke = TASA_LIBRE_RIESGO + (beta * PRIMA_RIESGO_MERCADO)
         
-        try:
-            interest_expense = abs(resultados.loc['Interest Expense'].iloc[0])
-            pretax_income = resultados.loc['Pretax Income'].iloc[0]
-            tax_provision = resultados.loc['Tax Provision'].iloc[0]
-            tax_rate = tax_provision / pretax_income if pretax_income != 0 else 0.21
-            if tax_rate < 0 or tax_rate > 0.5: tax_rate = 0.21
+        # Costo de la Deuda (Kd) - Estimado
+        gastos_intereses = info.get('interestExpense', 0) # Suele ser negativo
+        if gastos_intereses is None: gastos_intereses = 0
             
-            costo_deuda_bruto = interest_expense / deuda_total if deuda_total > 0 else 0
-            kd = costo_deuda_bruto * (1 - tax_rate)
-        except:
-            kd = 0.04
-
-        w_e = market_cap / enterprise_value
-        w_d = deuda_neta / enterprise_value
-        wacc = (w_e * ke) + (w_d * kd)
+        if deuda_total > 0 and gastos_intereses != 0:
+            kd = abs(gastos_intereses) / deuda_total
+        else:
+            kd = 0.05 # Estimado conservador del 5% si no hay datos
+            
+        tax_rate = 0.21 
+        kd_neto = kd * (1 - tax_rate)
         
-        # 3. CRECIMIENTO Y FCF
-        g = info.get('earningsGrowth', 0.03)
-        if g is None or g > GROWTH_CAP: g = GROWTH_CAP
-            
-        if wacc <= g: return None # Gordon no funciona si g > WACC
+        # WACC
+        peso_e = market_cap / enterprise_value
+        peso_d = deuda_neta / enterprise_value if enterprise_value > 0 else 0
+        wacc = (peso_e * ke) + (peso_d * kd_neto)
+        
+        if wacc <= 0.04: wacc = 0.04 # Suelo mínimo por seguridad
+        if wacc > 0.15: wacc = 0.15  # Techo máximo para no castigar excesivamente
 
-        try:
-            fcf = flujo.loc['Free Cash Flow'].iloc[0]
-        except KeyError:
-            op_cash = flujo.loc['Operating Cash Flow'].iloc[0]
-            capex = flujo.loc['Capital Expenditure'].iloc[0]
-            fcf = op_cash + capex
-            
-        if fcf <= 0: return None
+        # Tasa de Crecimiento (g)
+        # Usamos las estimaciones de analistas si existen, si no, conservador
+        estimado_crecimiento = info.get('earningsGrowth', 0.03)
+        g = min(estimado_crecimiento, 0.03) # Topeamos al 3% para ser conservadores (Value Investing)
 
-        # 4. VALORACIÓN FINAL
+        # VALORACIÓN (Gordon Growth Model modificado)
+        # Valor = FCF * (1+g) / (WACC - g)
+        if (wacc - g) <= 0:
+            return None # Matemáticamente imposible
+
         valor_empresa_total = (fcf * (1 + g)) / (wacc - g)
-        valor_patrimonio = valor_empresa_total - deuda_neta
-        acciones = info.get('sharesOutstanding', 1)
-        valor_intrinseco = valor_patrimonio / acciones
+        valor_equity = valor_empresa_total - deuda_neta
         
+        if shares_outstanding > 0:
+            valor_intrinseco = valor_equity / shares_outstanding
+        else:
+            return None
+
+        # --- FILTRO DE CALIDAD ---
+        if valor_intrinseco <= 0: return None # No queremos empresas quebradas
+
+        # RESULTADOS
         precio_compra_max = valor_intrinseco * (1 - MARGEN_SEGURIDAD)
-        
         decision = "COMPRA FUERTE" if precio_actual < precio_compra_max else "MANTENER/VENTA"
         upside = (valor_intrinseco - precio_actual) / precio_actual
 
         return {
             "Ticker": ticker_symbol,
             "Empresa": nombre_oficial,
-            "Sector": sector,  # <--- GUARDAMOS EL SECTOR
+            "Sector": sector,
             "Precio": precio_actual,
             "Valor Justo": valor_intrinseco,
             "Precio Max Compra": precio_compra_max,
@@ -126,37 +166,47 @@ def valorar_empresa(ticker_symbol):
         }
 
     except Exception as e:
+        # Si falla cualquier cosa rara, simplemente devolvemos None y el loop sigue
         return None
 
-# --- EJECUCIÓN PRINCIPAL ---
-print("Descargando lista S&P 500...")
-headers = {"User-Agent": "Mozilla/5.0"}
-try:
-    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-    lista_tickers = pd.read_html(requests.get(url, headers=headers).text)[0]['Symbol'].tolist()
-    lista_tickers = [item.replace('.', '-') for item in lista_tickers]
-    # lista_tickers = lista_tickers[:10] # Descomenta para pruebas rápidas
-except:
-    lista_tickers = ['KO', 'AAPL', 'MSFT']
-
-resultados = []
-print(f"Analizando {len(lista_tickers)} empresas...")
-
-for ticker in lista_tickers:
-    print(f"Procesando: {ticker}...", end="\r")
-    datos = valorar_empresa(ticker)
-    if datos: resultados.append(datos)
-
-df_final = pd.DataFrame(resultados)
-
-# Filtros de Calidad
-if not df_final.empty:
-    df_final = df_final[df_final['WACC'] >= 0.05]
-    df_final = df_final[df_final['Upside Potencial'] <= 2.0]
-    df_final = df_final[df_final['Upside Potencial'] > 0]
-
-    # --- NUEVO: ESTAMPAR LA FECHA DE HOY ---
-    df_final['Ultima Actualizacion'] = date.today().strftime('%d/%m/%Y')
+# ==========================================
+# 4. EJECUCIÓN PRINCIPAL
+# ==========================================
+if __name__ == "__main__":
+    tickers = obtener_todos_los_tickers()
     
-    df_final.to_csv('resultados_valoracion_filtrados.csv', index=False)
-    print("✅ ¡Datos actualizados exitosamente!")
+    if not tickers:
+        print("❌ No se pudieron obtener tickers. Abortando.")
+        exit()
+        
+    resultados = []
+    total = len(tickers)
+    
+    print(f"🚀 Iniciando análisis de {total} empresas del S&P 1500...")
+    
+    for i, ticker in enumerate(tickers):
+        print(f"[{i+1}/{total}] Analizando {ticker}...", end="\r") # Progreso en una línea
+        
+        datos = valorar_empresa(ticker)
+        if datos:
+            resultados.append(datos)
+            
+    print("\n✅ Análisis completado.")
+    
+    df_final = pd.DataFrame(resultados)
+
+    # Filtros de Calidad y Guardado
+    if not df_final.empty:
+        # Filtramos basura: WACC lógico y Upside no infinito
+        df_final = df_final[df_final['WACC'] >= 0.04] 
+        df_final = df_final[df_final['Upside Potencial'] <= 3.0] # Descartar errores de >300% upside (suelen ser fallos de datos)
+        df_final = df_final[df_final['Upside Potencial'] > 0]
+        
+        # Agregamos Fecha
+        df_final['Ultima Actualizacion'] = date.today().strftime('%d/%m/%Y')
+        
+        # Guardamos
+        df_final.to_csv('resultados_valoracion_filtrados.csv', index=False)
+        print(f"💾 Guardado: {len(df_final)} oportunidades encontradas.")
+    else:
+        print("⚠️ No se encontraron oportunidades que cumplan los criterios.")
