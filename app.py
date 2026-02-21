@@ -31,9 +31,8 @@ if 'Ultima Actualizacion' in df.columns:
 min_upside = st.sidebar.slider("Upside Mínimo (%)", 0, 100, 10)
 ticker_buscar = st.sidebar.text_input("Buscar Ticker o Empresa", "").upper()
 
-# --- NUEVO: SELECTOR DE SECTOR ---
+# --- SELECTOR DE SECTOR ---
 if 'Sector' in df.columns:
-    # Creamos una lista alfabética de sectores y le agregamos "Todos" al inicio
     lista_sectores = ["Todos"] + sorted(df['Sector'].dropna().unique().tolist())
     sector_buscar = st.sidebar.selectbox("🏢 Filtrar por Sector", lista_sectores)
 else:
@@ -42,17 +41,14 @@ else:
 # ==========================================
 # APLICAR FILTROS EN CASCADA
 # ==========================================
-# 1. Filtro de ganancia mínima
 df_filtrado = df[df['Upside Potencial'] > (min_upside/100)]
 
-# 2. Filtro de búsqueda por texto (Ticker)
 if ticker_buscar:
     df_filtrado = df_filtrado[
         df_filtrado['Ticker'].str.contains(ticker_buscar) | 
         df_filtrado['Empresa'].str.upper().str.contains(ticker_buscar)
     ]
 
-# 3. Filtro por Industria/Sector
 if sector_buscar != "Todos":
     df_filtrado = df_filtrado[df_filtrado['Sector'] == sector_buscar]
 
@@ -64,6 +60,27 @@ if df_filtrado.empty:
     st.info("💡 Intenta bajar el 'Upside Mínimo' o asegúrate de que el Ticker pertenezca al Sector que seleccionaste.")
     st.stop() 
 
+# ==========================================
+# CÁLCULO GLOBAL DE SALUD FINANCIERA
+# ==========================================
+if 'Activo Circulante' in df_filtrado.columns:
+    pas_circ_seguro = df_filtrado['Pasivo Circulante'].replace(0, 1).fillna(1)
+    act_tot_seguro = df_filtrado['Activo Total'].replace(0, 1).fillna(1)
+    ventas_seguro = df_filtrado['Ventas Totales'].replace(0, 1).fillna(1)
+    gastos_int_seguro = df_filtrado['Gastos por Intereses'].replace(0, 1).fillna(1)
+
+    pa = (df_filtrado['Activo Circulante'].fillna(0) - df_filtrado['Inventario'].fillna(0)) / pas_circ_seguro
+    rc = df_filtrado['Activo Circulante'].fillna(0) / pas_circ_seguro
+    end = df_filtrado['Pasivo Total'].fillna(0) / act_tot_seguro
+    mn = df_filtrado['Utilidad Neta'].fillna(0) / ventas_seguro
+    ci = df_filtrado['EBIT'].fillna(0) / gastos_int_seguro
+
+    df_filtrado['Todo_Verde'] = (pa >= 1) & (rc >= 1.5) & (end < 0.50) & (mn > 0.10) & (ci > 3)
+    df_filtrado['Salud Financiera'] = df_filtrado['Todo_Verde'].apply(lambda x: '🟢 Impecable' if x else '🟡 Con Riesgos')
+else:
+    df_filtrado['Todo_Verde'] = False
+    df_filtrado['Salud Financiera'] = 'Pendiente...'
+
 # --- CREACIÓN DE PESTAÑAS ---
 tab1, tab2 = st.tabs(["📉 Radar de Oportunidades", "🛡️ Estrategia de Portafolio"])
 
@@ -73,10 +90,9 @@ tab1, tab2 = st.tabs(["📉 Radar de Oportunidades", "🛡️ Estrategia de Port
 with tab1:
     st.subheader(f"🏆 Oportunidades Detectadas ({len(df_filtrado)})")
 
-    # Columnas a mostrar
-    cols_mostrar = ['Ticker', 'Empresa', 'Sector', 'Precio', 'Valor Justo', 'Upside Potencial', 'Decisión']
+    # Añadimos 'Salud Financiera' a las columnas de la tabla principal
+    cols_mostrar = ['Ticker', 'Empresa', 'Sector', 'Precio', 'Valor Justo', 'Upside Potencial', 'Decisión', 'Salud Financiera']
     
-    # Validación por si el CSV aún no tiene la columna Sector
     if 'Sector' not in df_filtrado.columns:
         df_filtrado['Sector'] = "Pendiente..."
 
@@ -94,7 +110,6 @@ with tab1:
     st.header("💎 Caja de Cristal: Auditoría")
     st.info("Selecciona una empresa para ver el desglose matemático paso a paso.")
 
-    # Selector inteligente
     df_filtrado['Etiqueta_Selector'] = df_filtrado['Ticker'] + " - " + df_filtrado['Empresa']
     lista_empresas = sorted(df_filtrado['Etiqueta_Selector'].tolist())
     seleccion_etiqueta = st.selectbox("Selecciona empresa a auditar:", lista_empresas)
@@ -135,13 +150,12 @@ with tab1:
         k3.metric("Precio MÁXIMO Compra", f"${precio_max:.2f}", delta="Tu Límite", delta_color="normal")
 
         # ==========================================
-        # NUEVA SECCIÓN: RAZONES FINANCIERAS (KPIs)
+        # RAZONES FINANCIERAS (KPIs)
         # ==========================================
         st.divider()
         st.subheader("📚 KPIs y Razones Financieras")
         st.write("Evaluación de la salud de la empresa paso a paso:")
 
-        # --- Extracción segura de datos ---
         act_circ = dato.get('Activo Circulante', 0)
         inv = dato.get('Inventario', 0)
         pas_circ = dato.get('Pasivo Circulante', 1) 
@@ -183,7 +197,7 @@ with tab1:
         st.write("Mide qué porcentaje de los activos totales de la empresa está financiado por deuda.")
         st.markdown("**Fórmula:** Pasivo Total / Activo Total")
         endeudamiento = pas_tot / act_tot
-        texto_end = f"**Cálculo:** {pas_tot:,.0f} / {act_tot:,.0f} = **{endeudamiento:.1%}**" # Formateado como porcentaje
+        texto_end = f"**Cálculo:** {pas_tot:,.0f} / {act_tot:,.0f} = **{endeudamiento:.1%}**" 
         
         if endeudamiento < 0.50:
             st.success(texto_end + " ✅ (Sano, menor al 50%)")
@@ -197,7 +211,7 @@ with tab1:
         margen_neto = (util_neta / ventas)
         texto_mn = f"**Cálculo:** ({util_neta:,.0f} / {ventas:,.0f}) * 100 = **{margen_neto:.2%}**"
         
-        if margen_neto > 0.10: # Si gana más del 10% limpio, es excelente
+        if margen_neto > 0.10: 
             st.success(texto_mn + " ✅ (Buen margen)")
         elif margen_neto > 0:
             st.warning(texto_mn + " ⚠️ (Margen estrecho)")
@@ -224,7 +238,6 @@ with tab1:
 with tab2:
     st.header("🛡️ Gestión de Riesgo y Sectores")
     
-    # Validamos que ya existan los datos contables en el CSV
     if 'Sector' in df_filtrado.columns and 'Activo Circulante' in df_filtrado.columns:
         
         # 1. GRÁFICO DE SECTORES
@@ -239,66 +252,39 @@ with tab2:
             st.warning("💡 **Tip de Inversión:**")
             st.write("No compres todas las acciones del mismo color. Si el sector **Tecnología** cae, querrás tener algo en **Consumo Defensivo** o **Salud** para compensar.")
             
-            # Conteo
             if not df_filtrado.empty:
                 top_sector = df_filtrado['Sector'].value_counts().idxmax()
                 st.write(f"⚠️ Tu mayor exposición actual es a: **{top_sector}**")
 
         st.markdown("---")
         
-        # 2. LAS MEJORES DE CADA CLASE (FILTRO DE CALIDAD ESTRICTO)
+        # 2. LAS MEJORES DE CADA CLASE
         st.subheader("💎 Las Mejores de Cada Sector (Filtro de Calidad)")
         st.write("Seleccionamos la opción con **mayor Upside** de cada industria, priorizando aquellas que tienen **salud financiera perfecta** (Todo en Verde).")
         
-        # --- CÁLCULO MASIVO DE KPIs (Vectorizado para ser ultra rápido) ---
-        # Usamos .replace(0, 1) para evitar divisiones matemáticas por cero
-        pas_circ_seguro = df_filtrado['Pasivo Circulante'].replace(0, 1).fillna(1)
-        act_tot_seguro = df_filtrado['Activo Total'].replace(0, 1).fillna(1)
-        ventas_seguro = df_filtrado['Ventas Totales'].replace(0, 1).fillna(1)
-        gastos_int_seguro = df_filtrado['Gastos por Intereses'].replace(0, 1).fillna(1)
-
-        pa = (df_filtrado['Activo Circulante'].fillna(0) - df_filtrado['Inventario'].fillna(0)) / pas_circ_seguro
-        rc = df_filtrado['Activo Circulante'].fillna(0) / pas_circ_seguro
-        end = df_filtrado['Pasivo Total'].fillna(0) / act_tot_seguro
-        mn = df_filtrado['Utilidad Neta'].fillna(0) / ventas_seguro
-        ci = df_filtrado['EBIT'].fillna(0) / gastos_int_seguro
-
-        # Evaluamos las 5 reglas de oro para que sea "Todo Verde"
-        df_filtrado['Todo_Verde'] = (pa >= 1) & (rc >= 1.5) & (end < 0.50) & (mn > 0.10) & (ci > 3)
-
-        # --- SELECCIÓN INTELIGENTE POR SECTOR ---
         mejores_lista = []
         sectores = df_filtrado['Sector'].unique()
         
         for s in sectores:
             df_sector = df_filtrado[df_filtrado['Sector'] == s]
-            
-            # Filtramos solo las que son "Todo Verde"
             df_verdes = df_sector[df_sector['Todo_Verde'] == True]
             
             if not df_verdes.empty:
-                # Si hay empresas perfectas en este sector, tomamos la de mayor Upside
                 mejor = df_verdes.loc[df_verdes['Upside Potencial'].idxmax()].copy()
-                mejor['Salud Financiera'] = '🟢 Impecable'
             else:
-                # Si NINGUNA empresa de este sector pasó todas las pruebas, 
-                # tomamos la de mayor Upside general, pero le ponemos la etiqueta de alerta.
                 mejor = df_sector.loc[df_sector['Upside Potencial'].idxmax()].copy()
-                mejor['Salud Financiera'] = '🟡 Con Riesgos'
             
             mejores_lista.append(mejor)
             
         mejores_sector = pd.DataFrame(mejores_lista)
         
-        # --- MOSTRAR LA TABLA CON FORMATO ---
         cols_finales = ['Sector', 'Ticker', 'Empresa', 'Precio', 'Upside Potencial', 'Salud Financiera']
         
-        # Función para pintar las filas
         def colorear_filas(row):
             if row['Salud Financiera'] == '🟡 Con Riesgos':
-                return ['background-color: #4d4d00; color: white'] * len(row) # Fondo oscuro amarillo/oliva (amigable con modo oscuro/claro)
+                return ['background-color: #4d4d00; color: white'] * len(row) 
             elif row['Salud Financiera'] == '🟢 Impecable':
-                return ['background-color: #003311; color: white'] * len(row) # Fondo verde oscuro
+                return ['background-color: #003311; color: white'] * len(row) 
             return [''] * len(row)
 
         st.dataframe(
@@ -311,9 +297,3 @@ with tab2:
         
     else:
         st.info("⚠️ Aún no se han cargado los datos contables completos. Espera a la próxima actualización del robot.")
-
-
-
-
-
-
