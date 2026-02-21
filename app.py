@@ -200,12 +200,14 @@ with tab1:
             st.error(texto_ci + " 🚨 (Peligro de impago, menor a 1.5x)")
 
 # ==============================================================================
-# PESTAÑA 2: ESTRATEGIA DE PORTAFOLIO (NUEVO)
+# PESTAÑA 2: ESTRATEGIA DE PORTAFOLIO 
 # ==============================================================================
 with tab2:
     st.header("🛡️ Gestión de Riesgo y Sectores")
     
-    if 'Sector' in df_filtrado.columns:
+    # Validamos que ya existan los datos contables en el CSV
+    if 'Sector' in df_filtrado.columns and 'Activo Circulante' in df_filtrado.columns:
+        
         # 1. GRÁFICO DE SECTORES
         col_pie, col_info = st.columns([2, 1])
         
@@ -219,20 +221,69 @@ with tab2:
             st.write("No compres todas las acciones del mismo color. Si el sector **Tecnología** cae, querrás tener algo en **Consumo Defensivo** o **Salud** para compensar.")
             
             # Conteo
-            top_sector = df_filtrado['Sector'].value_counts().idxmax()
-            st.write(f"⚠️ Tu mayor exposición actual es a: **{top_sector}**")
+            if not df_filtrado.empty:
+                top_sector = df_filtrado['Sector'].value_counts().idxmax()
+                st.write(f"⚠️ Tu mayor exposición actual es a: **{top_sector}**")
 
         st.markdown("---")
         
-        # 2. LAS MEJORES DE CADA CLASE (BEST IN CLASS)
-        st.subheader("💎 Las Mejores de Cada Sector")
-        st.write("Si quieres diversificar, aquí tienes la opción más barata (mayor Upside) de cada industria disponible:")
+        # 2. LAS MEJORES DE CADA CLASE (FILTRO DE CALIDAD ESTRICTO)
+        st.subheader("💎 Las Mejores de Cada Sector (Filtro de Calidad)")
+        st.write("Seleccionamos la opción con **mayor Upside** de cada industria, priorizando aquellas que tienen **salud financiera perfecta** (Todo en Verde).")
         
-        # Agrupamos por sector y sacamos la que tiene mayor Upside
-        mejores_sector = df_filtrado.loc[df_filtrado.groupby("Sector")["Upside Potencial"].idxmax()]
+        # --- CÁLCULO MASIVO DE KPIs (Vectorizado para ser ultra rápido) ---
+        # Usamos .replace(0, 1) para evitar divisiones matemáticas por cero
+        pas_circ_seguro = df_filtrado['Pasivo Circulante'].replace(0, 1).fillna(1)
+        act_tot_seguro = df_filtrado['Activo Total'].replace(0, 1).fillna(1)
+        ventas_seguro = df_filtrado['Ventas Totales'].replace(0, 1).fillna(1)
+        gastos_int_seguro = df_filtrado['Gastos por Intereses'].replace(0, 1).fillna(1)
+
+        pa = (df_filtrado['Activo Circulante'].fillna(0) - df_filtrado['Inventario'].fillna(0)) / pas_circ_seguro
+        rc = df_filtrado['Activo Circulante'].fillna(0) / pas_circ_seguro
+        end = df_filtrado['Pasivo Total'].fillna(0) / act_tot_seguro
+        mn = df_filtrado['Utilidad Neta'].fillna(0) / ventas_seguro
+        ci = df_filtrado['EBIT'].fillna(0) / gastos_int_seguro
+
+        # Evaluamos las 5 reglas de oro para que sea "Todo Verde"
+        df_filtrado['Todo_Verde'] = (pa >= 1) & (rc >= 1.5) & (end < 0.50) & (mn > 0.10) & (ci > 3)
+
+        # --- SELECCIÓN INTELIGENTE POR SECTOR ---
+        mejores_lista = []
+        sectores = df_filtrado['Sector'].unique()
         
+        for s in sectores:
+            df_sector = df_filtrado[df_filtrado['Sector'] == s]
+            
+            # Filtramos solo las que son "Todo Verde"
+            df_verdes = df_sector[df_sector['Todo_Verde'] == True]
+            
+            if not df_verdes.empty:
+                # Si hay empresas perfectas en este sector, tomamos la de mayor Upside
+                mejor = df_verdes.loc[df_verdes['Upside Potencial'].idxmax()].copy()
+                mejor['Salud Financiera'] = '🟢 Impecable'
+            else:
+                # Si NINGUNA empresa de este sector pasó todas las pruebas, 
+                # tomamos la de mayor Upside general, pero le ponemos la etiqueta de alerta.
+                mejor = df_sector.loc[df_sector['Upside Potencial'].idxmax()].copy()
+                mejor['Salud Financiera'] = '🟡 Con Riesgos'
+            
+            mejores_lista.append(mejor)
+            
+        mejores_sector = pd.DataFrame(mejores_lista)
+        
+        # --- MOSTRAR LA TABLA CON FORMATO ---
+        cols_finales = ['Sector', 'Ticker', 'Empresa', 'Precio', 'Upside Potencial', 'Salud Financiera']
+        
+        # Función para pintar las filas
+        def colorear_filas(row):
+            if row['Salud Financiera'] == '🟡 Con Riesgos':
+                return ['background-color: #4d4d00; color: white'] * len(row) # Fondo oscuro amarillo/oliva (amigable con modo oscuro/claro)
+            elif row['Salud Financiera'] == '🟢 Impecable':
+                return ['background-color: #003311; color: white'] * len(row) # Fondo verde oscuro
+            return [''] * len(row)
+
         st.dataframe(
-            mejores_sector[['Sector', 'Ticker', 'Empresa', 'Precio', 'Upside Potencial']].style.format({
+            mejores_sector[cols_finales].style.apply(colorear_filas, axis=1).format({
                 "Precio": "${:.2f}",
                 "Upside Potencial": "{:.1%}"
             }),
@@ -240,7 +291,7 @@ with tab2:
         )
         
     else:
-        st.info("⚠️ Aún no se han cargado los datos de Sectores. Espera a la próxima actualización del robot.")
+        st.info("⚠️ Aún no se han cargado los datos contables completos. Espera a la próxima actualización del robot.")
 
 
 
