@@ -31,19 +31,38 @@ if 'Ultima Actualizacion' in df.columns:
 min_upside = st.sidebar.slider("Upside Mínimo (%)", 0, 100, 10)
 ticker_buscar = st.sidebar.text_input("Buscar Ticker o Empresa", "").upper()
 
-# Aplicar filtros
+# --- NUEVO: SELECTOR DE SECTOR ---
+if 'Sector' in df.columns:
+    # Creamos una lista alfabética de sectores y le agregamos "Todos" al inicio
+    lista_sectores = ["Todos"] + sorted(df['Sector'].dropna().unique().tolist())
+    sector_buscar = st.sidebar.selectbox("🏢 Filtrar por Sector", lista_sectores)
+else:
+    sector_buscar = "Todos"
+
+# ==========================================
+# APLICAR FILTROS EN CASCADA
+# ==========================================
+# 1. Filtro de ganancia mínima
 df_filtrado = df[df['Upside Potencial'] > (min_upside/100)]
 
+# 2. Filtro de búsqueda por texto (Ticker)
 if ticker_buscar:
     df_filtrado = df_filtrado[
         df_filtrado['Ticker'].str.contains(ticker_buscar) | 
         df_filtrado['Empresa'].str.upper().str.contains(ticker_buscar)
     ]
 
+# 3. Filtro por Industria/Sector
+if sector_buscar != "Todos":
+    df_filtrado = df_filtrado[df_filtrado['Sector'] == sector_buscar]
+
+# ==========================================
+# ESCUDO ANTI-CRASH
+# ==========================================
 if df_filtrado.empty:
-    st.warning(f"🕵️‍♂️ No se encontró ninguna empresa en la base de datos con la búsqueda: **{ticker_buscar}**")
-    st.info("💡 Verifica que el Ticker esté bien escrito o asegúrate de que el filtro de 'Upside Mínimo' no esté muy alto.")
-    st.stop() # Esta función mágica detiene la carga del resto de la página sin mostrar errores rojos.
+    st.warning("🕵️‍♂️ No se encontró ninguna empresa que cumpla con todos estos filtros.")
+    st.info("💡 Intenta bajar el 'Upside Mínimo' o asegúrate de que el Ticker pertenezca al Sector que seleccionaste.")
+    st.stop() 
 
 # --- CREACIÓN DE PESTAÑAS ---
 tab1, tab2 = st.tabs(["📉 Radar de Oportunidades", "🛡️ Estrategia de Portafolio"])
@@ -292,6 +311,7 @@ with tab2:
         
     else:
         st.info("⚠️ Aún no se han cargado los datos contables completos. Espera a la próxima actualización del robot.")
+
 
 
 
