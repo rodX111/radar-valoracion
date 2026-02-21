@@ -118,14 +118,18 @@ with tab1:
         st.write("Evaluación de la salud de la empresa paso a paso:")
 
         # --- Extracción segura de datos ---
-        # (Si el dato no existe aún en el CSV, usamos 0 o 1 para evitar errores matemáticos)
+        # (Si el dato no existe aún en el CSV, usamos 0 o 1 para evitar errores)
         act_circ = dato.get('Activo Circulante', 0)
         inv = dato.get('Inventario', 0)
-        pas_circ = dato.get('Pasivo Circulante', 1) # 1 para no dividir por cero
+        pas_circ = dato.get('Pasivo Circulante', 1) 
         act_tot = dato.get('Activo Total', 1)
         pas_tot = dato.get('Pasivo Total', 0)
         util_neta = dato.get('Utilidad Neta', 0)
         ventas = dato.get('Ventas Totales', 1)
+        
+        # Nuevas variables para Cobertura de Intereses
+        ebit = dato.get('EBIT', 0) # Utilidad Operativa
+        gastos_int = dato.get('Gastos por Intereses', 1) # Usamos 1 para no dividir por cero
 
         # 1. PRUEBA ÁCIDA
         st.markdown("##### 🧪 1. Prueba Ácida")
@@ -154,6 +158,13 @@ with tab1:
         st.markdown("**Fórmula:** Margen Neto = (Utilidad Neta / Ventas Totales) * 100")
         margen_neto = (util_neta / ventas) * 100
         st.info(f"**Cálculo:** ({util_neta:,.0f} / {ventas:,.0f}) * 100 = **{margen_neto:.2f}%**")
+
+        # 5. COBERTURA DE INTERESES
+        st.markdown("##### 🛡️ 5. Cobertura de Intereses")
+        st.write("Mide cuántas veces la empresa puede pagar sus gastos por intereses con su utilidad operativa.")
+        st.markdown("**Fórmula:** Cobertura de Intereses = Utilidad Operativa (EBIT) / Gastos por Intereses")
+        cobertura_int = ebit / gastos_int
+        st.info(f"**Cálculo:** {ebit:,.0f} / {gastos_int:,.0f} = **{cobertura_int:.2f}x**")
 
 # ==============================================================================
 # PESTAÑA 2: ESTRATEGIA DE PORTAFOLIO (NUEVO)
@@ -197,5 +208,6 @@ with tab2:
         
     else:
         st.info("⚠️ Aún no se han cargado los datos de Sectores. Espera a la próxima actualización del robot.")
+
 
 
