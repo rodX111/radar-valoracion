@@ -7,7 +7,7 @@ st.set_page_config(page_title="Radar de Valor", page_icon="🎯", layout="wide")
 
 # --- TÍTULO PRINCIPAL ---
 st.title("🎯 El Radar de Valor Democratizado")
-st.markdown("**Objetivo:** Encontrar empresas sólidas del S&P 1,500 que cotizan por debajo de su valor real.")
+st.markdown("**Objetivo:** Encontrar empresas sólidas del S&P 500 que cotizan por debajo de su valor real.")
 
 # --- CARGAR DATOS ---
 @st.cache_data(ttl=3600)
@@ -38,6 +38,14 @@ if 'Sector' in df.columns:
 else:
     sector_buscar = "Todos"
 
+# --- NUEVO: SELECTOR DE DECISIÓN ---
+if 'Decisión' in df.columns:
+    # Creamos una lista con las decisiones únicas y le agregamos "Todas" al inicio
+    lista_decisiones = ["Todas"] + sorted(df['Decisión'].dropna().unique().tolist())
+    decision_buscar = st.sidebar.selectbox("⚖️ Filtrar por Decisión", lista_decisiones)
+else:
+    decision_buscar = "Todas"
+
 # ==========================================
 # APLICAR FILTROS EN CASCADA
 # ==========================================
@@ -52,12 +60,15 @@ if ticker_buscar:
 if sector_buscar != "Todos":
     df_filtrado = df_filtrado[df_filtrado['Sector'] == sector_buscar]
 
+if decision_buscar != "Todas":
+    df_filtrado = df_filtrado[df_filtrado['Decisión'] == decision_buscar]
+
 # ==========================================
 # ESCUDO ANTI-CRASH
 # ==========================================
 if df_filtrado.empty:
     st.warning("🕵️‍♂️ No se encontró ninguna empresa que cumpla con todos estos filtros.")
-    st.info("💡 Intenta bajar el 'Upside Mínimo' o asegúrate de que el Ticker pertenezca al Sector que seleccionaste.")
+    st.info("💡 Intenta relajar los filtros (ej. cambia la Decisión a 'Todas' o baja el 'Upside Mínimo').")
     st.stop() 
 
 # ==========================================
@@ -297,4 +308,3 @@ with tab2:
         
     else:
         st.info("⚠️ Aún no se han cargado los datos contables completos. Espera a la próxima actualización del robot.")
-
