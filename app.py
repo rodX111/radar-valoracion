@@ -110,6 +110,51 @@ with tab1:
         k2.metric("Margen Seguridad", "20%")
         k3.metric("Precio MÁXIMO Compra", f"${precio_max:.2f}", delta="Tu Límite", delta_color="normal")
 
+        # ==========================================
+        # NUEVA SECCIÓN: RAZONES FINANCIERAS (KPIs)
+        # ==========================================
+        st.divider()
+        st.subheader("📚 KPIs y Razones Financieras")
+        st.write("Evaluación de la salud de la empresa paso a paso:")
+
+        # --- Extracción segura de datos ---
+        # (Si el dato no existe aún en el CSV, usamos 0 o 1 para evitar errores matemáticos)
+        act_circ = dato.get('Activo Circulante', 0)
+        inv = dato.get('Inventario', 0)
+        pas_circ = dato.get('Pasivo Circulante', 1) # 1 para no dividir por cero
+        act_tot = dato.get('Activo Total', 1)
+        pas_tot = dato.get('Pasivo Total', 0)
+        util_neta = dato.get('Utilidad Neta', 0)
+        ventas = dato.get('Ventas Totales', 1)
+
+        # 1. PRUEBA ÁCIDA
+        st.markdown("##### 🧪 1. Prueba Ácida")
+        st.write("Mide la capacidad de pagar deudas a corto plazo sin depender de vender el inventario.")
+        st.markdown("**Fórmula:** Prueba ácida = (Activo Circulante - Inventarios) / Pasivos circulantes")
+        prueba_acida = (act_circ - inv) / pas_circ
+        st.info(f"**Cálculo:** ({act_circ:,.0f} - {inv:,.0f}) / {pas_circ:,.0f} = **{prueba_acida:.2f}**")
+
+        # 2. RAZÓN CIRCULANTE (LIQUIDEZ)
+        st.markdown("##### 💧 2. Razón Circulante")
+        st.write("Indica si la empresa tiene suficientes activos a corto plazo para cubrir sus deudas a corto plazo.")
+        st.markdown("**Fórmula:** Razón Circulante = Activo Circulante / Pasivo Circulante")
+        razon_circulante = act_circ / pas_circ
+        st.info(f"**Cálculo:** {act_circ:,.0f} / {pas_circ:,.0f} = **{razon_circulante:.2f}**")
+
+        # 3. RAZÓN DE ENDEUDAMIENTO
+        st.markdown("##### ⚖️ 3. Razón de Endeudamiento")
+        st.write("Mide qué porcentaje de los activos totales de la empresa está financiado por deuda.")
+        st.markdown("**Fórmula:** Endeudamiento = Pasivo Total / Activo Total")
+        endeudamiento = pas_tot / act_tot
+        st.info(f"**Cálculo:** {pas_tot:,.0f} / {act_tot:,.0f} = **{endeudamiento:.2f}**")
+
+        # 4. MARGEN DE UTILIDAD NETA
+        st.markdown("##### 💵 4. Margen de Utilidad Neta")
+        st.write("Mide cuánto de cada dólar en ventas se convierte en ganancia real.")
+        st.markdown("**Fórmula:** Margen Neto = (Utilidad Neta / Ventas Totales) * 100")
+        margen_neto = (util_neta / ventas) * 100
+        st.info(f"**Cálculo:** ({util_neta:,.0f} / {ventas:,.0f}) * 100 = **{margen_neto:.2f}%**")
+
 # ==============================================================================
 # PESTAÑA 2: ESTRATEGIA DE PORTAFOLIO (NUEVO)
 # ==============================================================================
@@ -152,4 +197,5 @@ with tab2:
         
     else:
         st.info("⚠️ Aún no se han cargado los datos de Sectores. Espera a la próxima actualización del robot.")
+
 
