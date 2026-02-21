@@ -57,84 +57,91 @@ def obtener_todos_los_tickers():
         return []
 
 # ==========================================
-# 3. MOTOR DE VALORACIÓN (Con Blindaje)
+# 3. MOTOR DE VALORACIÓN (Con KPIs Contables)
 # ==========================================
 def valorar_empresa(ticker_symbol):
     try:
-        # Descarga de datos
         empresa = yf.Ticker(ticker_symbol)
         info = empresa.info
         
-        # --- FILTRO 1: DATOS CRÍTICOS FALTANTES ---
-        # Si no hay precio o Market Cap, abortamos misión con esta empresa.
+        # Filtro de seguridad inicial
         if 'currentPrice' not in info or 'marketCap' not in info:
             return None
 
         # --- DATOS GENERALES ---
         nombre_oficial = info.get('longName', ticker_symbol)
-        sector = info.get('sector', 'Desconocido') # Capturamos Sector
-        
+        sector = info.get('sector', 'Desconocido')
         precio_actual = info['currentPrice']
         market_cap = info['marketCap']
         beta = info.get('beta', 1.0)
         
-        # --- DATOS FINANCIEROS (Con valores por defecto si fallan) ---
+        # --- DESCARGA DE ESTADOS FINANCIEROS ---
+        balance = empresa.balance_sheet
+        resultados = empresa.financials
+        
+        # Función auxiliar para buscar métricas de forma segura en los reportes
+        def obtener_metrica(df, nombres_posibles):
+            if df is None or df.empty: 
+                return 0
+            for nombre in nombres_posibles:
+                if nombre in df.index:
+                    # Toma el dato de la primera columna (el año más reciente reportado)
+                    dato = df.loc[nombre].iloc[0]
+                    # Si es NaN (vacío), devolvemos 0
+                    return dato if not pd.isna(dato) else 0
+            return 0
+
+        # --- EXTRACCIÓN DE NUEVOS KPIs CONTABLES ---
+        act_circ = obtener_metrica(balance, ['Current Assets', 'Total Current Assets'])
+        inv = obtener_metrica(balance, ['Inventory'])
+        pas_circ = obtener_metrica(balance, ['Current Liabilities', 'Total Current Liabilities'])
+        act_tot = obtener_metrica(balance, ['Total Assets'])
+        pas_tot = obtener_metrica(balance, ['Total Liabilities Net Minority Interest', 'Total Liabilities'])
+        
+        util_neta = obtener_metrica(resultados, ['Net Income', 'Net Income Common Stockholders'])
+        ventas = obtener_metrica(resultados, ['Total Revenue', 'Operating Revenue'])
+        ebit = obtener_metrica(resultados, ['EBIT', 'Operating Income'])
+        gastos_int = obtener_metrica(resultados, ['Interest Expense', 'Interest Expense Non Operating'])
+        # A veces los gastos por intereses vienen en negativo, nos aseguramos de usar el valor absoluto:
+        gastos_int = abs(gastos_int) if gastos_int != 0 else 1 # 1 para evitar división por cero luego
+
+        # --- DATOS FINANCIEROS (Para Valoración) ---
         deuda_total = info.get('totalDebt', 0)
         if deuda_total is None: deuda_total = 0
             
         total_cash = info.get('totalCash', 0)
         if total_cash is None: total_cash = 0
-            
-        ebitda = info.get('ebitda', 0)
+        
         shares_outstanding = info.get('sharesOutstanding', 0)
         
         # Flujo de Caja Libre (FCF)
         fcf = info.get('freeCashflow')
         if fcf is None:
-            # Plan B: Calcularlo manualmente si Yahoo no lo da directo
             operating_cashflow = info.get('operatingCashflow', 0)
-            capex = info.get('capitalExpenditures', 0) # Suele venir negativo
+            capex = info.get('capitalExpenditures', 0)
             if operating_cashflow and capex:
-                fcf = operating_cashflow + capex # Se suma porque capex es negativo
+                fcf = operating_cashflow + capex
             else:
-                return None # Si no hay datos de flujo, no podemos valorar
+                return None
 
-        # --- CÁLCULOS ---
+        # --- CÁLCULOS WACC Y DCF ---
         deuda_neta = deuda_total - total_cash
         enterprise_value = market_cap + deuda_neta
         
-        # Costo del Capital (Ke) - CAPM
         ke = TASA_LIBRE_RIESGO + (beta * PRIMA_RIESGO_MERCADO)
+        kd = gastos_int / deuda_total if deuda_total > 0 else 0.05
+        kd_neto = kd * (1 - 0.21)
         
-        # Costo de la Deuda (Kd) - Estimado
-        gastos_intereses = info.get('interestExpense', 0) # Suele ser negativo
-        if gastos_intereses is None: gastos_intereses = 0
-            
-        if deuda_total > 0 and gastos_intereses != 0:
-            kd = abs(gastos_intereses) / deuda_total
-        else:
-            kd = 0.05 # Estimado conservador del 5% si no hay datos
-            
-        tax_rate = 0.21 
-        kd_neto = kd * (1 - tax_rate)
-        
-        # WACC
-        peso_e = market_cap / enterprise_value
+        peso_e = market_cap / enterprise_value if enterprise_value > 0 else 1
         peso_d = deuda_neta / enterprise_value if enterprise_value > 0 else 0
         wacc = (peso_e * ke) + (peso_d * kd_neto)
         
-        if wacc <= 0.04: wacc = 0.04 # Suelo mínimo por seguridad
-        if wacc > 0.15: wacc = 0.15  # Techo máximo para no castigar excesivamente
+        if wacc <= 0.04: wacc = 0.04
+        if wacc > 0.15: wacc = 0.15
 
-        # Tasa de Crecimiento (g)
-        # Usamos las estimaciones de analistas si existen, si no, conservador
-        estimado_crecimiento = info.get('earningsGrowth', 0.03)
-        g = min(estimado_crecimiento, 0.03) # Topeamos al 3% para ser conservadores (Value Investing)
+        g = min(info.get('earningsGrowth', 0.03), 0.03)
 
-        # VALORACIÓN (Gordon Growth Model modificado)
-        # Valor = FCF * (1+g) / (WACC - g)
-        if (wacc - g) <= 0:
-            return None # Matemáticamente imposible
+        if (wacc - g) <= 0: return None
 
         valor_empresa_total = (fcf * (1 + g)) / (wacc - g)
         valor_equity = valor_empresa_total - deuda_neta
@@ -144,14 +151,13 @@ def valorar_empresa(ticker_symbol):
         else:
             return None
 
-        # --- FILTRO DE CALIDAD ---
-        if valor_intrinseco <= 0: return None # No queremos empresas quebradas
+        if valor_intrinseco <= 0: return None
 
-        # RESULTADOS
         precio_compra_max = valor_intrinseco * (1 - MARGEN_SEGURIDAD)
         decision = "COMPRA FUERTE" if precio_actual < precio_compra_max else "MANTENER/VENTA"
         upside = (valor_intrinseco - precio_actual) / precio_actual
 
+        # RESULTADOS CON LAS NUEVAS VARIABLES
         return {
             "Ticker": ticker_symbol,
             "Empresa": nombre_oficial,
@@ -162,20 +168,24 @@ def valorar_empresa(ticker_symbol):
             "Upside Potencial": upside,
             "Decisión": decision,
             "WACC": wacc,
+            "FCF": fcf,
+            "Crecimiento (g)": g,
             "Deuda Total": deuda_total,
             "Total Cash": total_cash,
             "Deuda Neta": deuda_neta,
-            "Market Cap": market_cap,
-            "Enterprise Value": enterprise_value,
-            "FCF": fcf,
-            "Crecimiento (g)": g,
-            "Ke": ke,
-            "Kd": kd,
-            "Beta": beta
+            # --- NUEVOS CAMPOS CONTABLES ---
+            "Activo Circulante": act_circ,
+            "Inventario": inv,
+            "Pasivo Circulante": pas_circ,
+            "Activo Total": act_tot,
+            "Pasivo Total": pas_tot,
+            "Utilidad Neta": util_neta,
+            "Ventas Totales": ventas,
+            "EBIT": ebit,
+            "Gastos por Intereses": gastos_int
         }
 
     except Exception as e:
-        # Si falla cualquier cosa rara, simplemente devolvemos None y el loop sigue
         return None
 
 # ==========================================
@@ -222,6 +232,7 @@ if not df_final.empty:
     print(f"💾 Guardado: {len(df_final)} oportunidades encontradas.")
 else:
     print("⚠️ No se encontraron oportunidades que cumplan los criterios.")
+
 
 
 
