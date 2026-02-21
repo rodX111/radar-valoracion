@@ -118,7 +118,6 @@ with tab1:
         st.write("Evaluación de la salud de la empresa paso a paso:")
 
         # --- Extracción segura de datos ---
-        # (Si el dato no existe aún en el CSV, usamos 0 o 1 para evitar errores)
         act_circ = dato.get('Activo Circulante', 0)
         inv = dato.get('Inventario', 0)
         pas_circ = dato.get('Pasivo Circulante', 1) 
@@ -126,45 +125,74 @@ with tab1:
         pas_tot = dato.get('Pasivo Total', 0)
         util_neta = dato.get('Utilidad Neta', 0)
         ventas = dato.get('Ventas Totales', 1)
-        
-        # Nuevas variables para Cobertura de Intereses
-        ebit = dato.get('EBIT', 0) # Utilidad Operativa
-        gastos_int = dato.get('Gastos por Intereses', 1) # Usamos 1 para no dividir por cero
+        ebit = dato.get('EBIT', 0) 
+        gastos_int = dato.get('Gastos por Intereses', 1) 
 
         # 1. PRUEBA ÁCIDA
         st.markdown("##### 🧪 1. Prueba Ácida")
         st.write("Mide la capacidad de pagar deudas a corto plazo sin depender de vender el inventario.")
-        st.markdown("**Fórmula:** Prueba ácida = (Activo Circulante - Inventarios) / Pasivos circulantes")
+        st.markdown("**Fórmula:** (Activo Circulante - Inventarios) / Pasivos circulantes")
         prueba_acida = (act_circ - inv) / pas_circ
-        st.info(f"**Cálculo:** ({act_circ:,.0f} - {inv:,.0f}) / {pas_circ:,.0f} = **{prueba_acida:.2f}**")
+        texto_pa = f"**Cálculo:** ({act_circ:,.0f} - {inv:,.0f}) / {pas_circ:,.0f} = **{prueba_acida:.2f}**"
+        
+        if prueba_acida >= 1:
+            st.success(texto_pa + " ✅ (Buena liquidez)")
+        else:
+            st.error(texto_pa + " 🚨 (Riesgo de liquidez a corto plazo)")
 
         # 2. RAZÓN CIRCULANTE (LIQUIDEZ)
         st.markdown("##### 💧 2. Razón Circulante")
         st.write("Indica si la empresa tiene suficientes activos a corto plazo para cubrir sus deudas a corto plazo.")
-        st.markdown("**Fórmula:** Razón Circulante = Activo Circulante / Pasivo Circulante")
+        st.markdown("**Fórmula:** Activo Circulante / Pasivo Circulante")
         razon_circulante = act_circ / pas_circ
-        st.info(f"**Cálculo:** {act_circ:,.0f} / {pas_circ:,.0f} = **{razon_circulante:.2f}**")
+        texto_rc = f"**Cálculo:** {act_circ:,.0f} / {pas_circ:,.0f} = **{razon_circulante:.2f}**"
+        
+        if razon_circulante >= 1.5:
+            st.success(texto_rc + " ✅ (Liquidez holgada)")
+        elif razon_circulante >= 1:
+            st.warning(texto_rc + " ⚠️ (Liquidez justa)")
+        else:
+            st.error(texto_rc + " 🚨 (Falta de liquidez)")
 
         # 3. RAZÓN DE ENDEUDAMIENTO
         st.markdown("##### ⚖️ 3. Razón de Endeudamiento")
         st.write("Mide qué porcentaje de los activos totales de la empresa está financiado por deuda.")
-        st.markdown("**Fórmula:** Endeudamiento = Pasivo Total / Activo Total")
+        st.markdown("**Fórmula:** Pasivo Total / Activo Total")
         endeudamiento = pas_tot / act_tot
-        st.info(f"**Cálculo:** {pas_tot:,.0f} / {act_tot:,.0f} = **{endeudamiento:.2f}**")
+        texto_end = f"**Cálculo:** {pas_tot:,.0f} / {act_tot:,.0f} = **{endeudamiento:.1%}**" # Formateado como porcentaje
+        
+        if endeudamiento < 0.50:
+            st.success(texto_end + " ✅ (Sano, menor al 50%)")
+        else:
+            st.warning(texto_end + " ⚠️ (Alto endeudamiento, mayor al 50%)")
 
         # 4. MARGEN DE UTILIDAD NETA
         st.markdown("##### 💵 4. Margen de Utilidad Neta")
         st.write("Mide cuánto de cada dólar en ventas se convierte en ganancia real.")
-        st.markdown("**Fórmula:** Margen Neto = (Utilidad Neta / Ventas Totales) * 100")
-        margen_neto = (util_neta / ventas) * 100
-        st.info(f"**Cálculo:** ({util_neta:,.0f} / {ventas:,.0f}) * 100 = **{margen_neto:.2f}%**")
+        st.markdown("**Fórmula:** (Utilidad Neta / Ventas Totales) * 100")
+        margen_neto = (util_neta / ventas)
+        texto_mn = f"**Cálculo:** ({util_neta:,.0f} / {ventas:,.0f}) * 100 = **{margen_neto:.2%}**"
+        
+        if margen_neto > 0.10: # Si gana más del 10% limpio, es excelente
+            st.success(texto_mn + " ✅ (Buen margen)")
+        elif margen_neto > 0:
+            st.warning(texto_mn + " ⚠️ (Margen estrecho)")
+        else:
+            st.error(texto_mn + " 🚨 (La empresa está perdiendo dinero)")
 
         # 5. COBERTURA DE INTERESES
         st.markdown("##### 🛡️ 5. Cobertura de Intereses")
         st.write("Mide cuántas veces la empresa puede pagar sus gastos por intereses con su utilidad operativa.")
-        st.markdown("**Fórmula:** Cobertura de Intereses = Utilidad Operativa (EBIT) / Gastos por Intereses")
+        st.markdown("**Fórmula:** Utilidad Operativa (EBIT) / Gastos por Intereses")
         cobertura_int = ebit / gastos_int
-        st.info(f"**Cálculo:** {ebit:,.0f} / {gastos_int:,.0f} = **{cobertura_int:.2f}x**")
+        texto_ci = f"**Cálculo:** {ebit:,.0f} / {gastos_int:,.0f} = **{cobertura_int:.2f}x**"
+        
+        if cobertura_int > 3:
+            st.success(texto_ci + " ✅ (Cobertura segura, mayor a 3x)")
+        elif cobertura_int > 1.5:
+            st.warning(texto_ci + " ⚠️ (Cobertura ajustada)")
+        else:
+            st.error(texto_ci + " 🚨 (Peligro de impago, menor a 1.5x)")
 
 # ==============================================================================
 # PESTAÑA 2: ESTRATEGIA DE PORTAFOLIO (NUEVO)
@@ -208,6 +236,7 @@ with tab2:
         
     else:
         st.info("⚠️ Aún no se han cargado los datos de Sectores. Espera a la próxima actualización del robot.")
+
 
 
 
