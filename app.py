@@ -40,6 +40,11 @@ if ticker_buscar:
         df_filtrado['Empresa'].str.upper().str.contains(ticker_buscar)
     ]
 
+if df_filtrado.empty:
+    st.warning(f"🕵️‍♂️ No se encontró ninguna empresa en la base de datos con la búsqueda: **{ticker_buscar}**")
+    st.info("💡 Verifica que el Ticker esté bien escrito o asegúrate de que el filtro de 'Upside Mínimo' no esté muy alto.")
+    st.stop() # Esta función mágica detiene la carga del resto de la página sin mostrar errores rojos.
+
 # --- CREACIÓN DE PESTAÑAS ---
 tab1, tab2 = st.tabs(["📉 Radar de Oportunidades", "🛡️ Estrategia de Portafolio"])
 
@@ -72,7 +77,7 @@ with tab1:
 
     # Selector inteligente
     df_filtrado['Etiqueta_Selector'] = df_filtrado['Ticker'] + " - " + df_filtrado['Empresa']
-    lista_empresas = df_filtrado['Etiqueta_Selector'].tolist()
+    lista_empresas = sorted(df_filtrado['Etiqueta_Selector'].tolist())
     seleccion_etiqueta = st.selectbox("Selecciona empresa a auditar:", lista_empresas)
 
     if seleccion_etiqueta:
@@ -236,6 +241,7 @@ with tab2:
         
     else:
         st.info("⚠️ Aún no se han cargado los datos de Sectores. Espera a la próxima actualización del robot.")
+
 
 
 
