@@ -149,6 +149,74 @@ with tab1:
         c5.metric("Crecimiento (g)", f"{dato['Crecimiento (g)']:.1%}")
         c6.metric("Riesgo (WACC)", f"{dato['WACC']:.1%}")
 
+        # ==========================================
+        # DESGLOSE DE FÓRMULA MAESTRA 
+        # ==========================================
+        with st.expander("🔍 Ver origen matemático de FCF, g y WACC"):
+            
+            # FCF
+            st.markdown("#### 1. Flujo de Caja Libre (FCF)")
+            st.write("Es el efectivo real que la empresa puede 'meterse al bolsillo' después de pagar sus operaciones y mantener su maquinaria (CapEx).")
+            st.markdown("**Fórmula:** Flujo de Caja Operativo - Gastos de Capital")
+            st.info(f"**Origen:** Dato extraído directamente de los reportes anuales = **${dato.get('FCF', 0):,.0f}**")
+
+            # Crecimiento (g)
+            st.markdown("#### 2. Tasa de Crecimiento (g)")
+            st.write("Cuánto crecerá la empresa. Para evitar la especulación, aplicamos una regla conservadora: nunca proyectar un crecimiento perpetuo mayor al crecimiento promedio de la economía (3%).")
+            st.markdown("**Fórmula:** Mínimo entre (Proyección de Analistas, 3%)")
+            st.info(f"**Cálculo:** Tasa conservadora aplicada al modelo = **{dato.get('Crecimiento (g)', 0):.1%}**")
+
+            # WACC
+            st.markdown("#### 3. Costo Promedio Ponderado de Capital (WACC)")
+            st.write("Es el riesgo de la inversión. Mezcla cuánto le cuesta a la empresa pedir préstamos bancarios (Costo de Deuda) y cuánto rendimiento le exigen sus accionistas (Costo de Capital, vía CAPM).")
+            st.markdown("**Fórmula:** (We × Ke) + (Wd × Kd × (1 - t))")
+            
+            # Extracción segura de los nuevos componentes del WACC
+            ke = dato.get('Ke', 0)
+            
+            if ke > 0: # Si el CSV ya tiene los datos nuevos detallados
+                peso_e = dato.get('Peso Equity', 1)
+                peso_d = dato.get('Peso Deuda', 0)
+                kd_neto = dato.get('Kd Neto', 0)
+                beta = dato.get('Beta', 1)
+                
+                # Variables extras para el cálculo visual
+                gastos_int = dato.get('Gastos por Intereses', 0)
+                deuda_total = dato.get('Deuda Total', 0)
+                
+                st.info(f"**Cálculo Final WACC:** ({peso_e:.1%} × {ke:.1%}) + ({peso_d:.1%} × {kd_neto:.1%}) = **{dato.get('WACC', 0):.1%}**")
+                
+                # --- DESGLOSE DE LOS INGREDIENTES DEL WACC ---
+                st.markdown("---")
+                st.markdown("##### 🧩 Desglose Matemático de Ingredientes")
+                
+                # Beta
+                st.write("**A. Riesgo de Mercado (Beta):** Mide la volatilidad de la acción frente al mercado. Un Beta > 1 significa que es más riesgosa que el mercado. Un Beta < 1 es más estable.")
+                st.info(f"**Origen:** Dato extraído de Yahoo Finance = **{beta:.2f}**")
+                
+                # Ke (Costo de Equity)
+                st.write("**B. Costo de Capital (Ke):** El rendimiento mínimo que exigen los accionistas por asumir el riesgo de invertir aquí. Se calcula con el modelo CAPM.")
+                st.markdown("**Fórmula:** Tasa Libre de Riesgo + (Beta × Prima de Riesgo de Mercado)")
+                st.info(f"**Cálculo:** 4.2% + ({beta:.2f} × 5.5%) = **{ke:.1%}**")
+                st.caption("*(Nota: 4.2% y 5.5% son estimaciones macroeconómicas estándar configuradas en tu motor de Python).*")
+                
+                # Kd (Costo de Deuda Neto)
+                st.write("**C. Costo de Deuda Neto (Kd):** La tasa de interés real que paga la empresa por su deuda, restando el beneficio fiscal (asumiendo 21% de impuestos).")
+                st.markdown("**Fórmula:** (Gastos por Intereses / Deuda Total) × (1 - 0.21)")
+                if deuda_total > 0:
+                    st.info(f"**Cálculo:** (${gastos_int:,.0f} / ${deuda_total:,.0f}) × 0.79 = **{kd_neto:.1%}**")
+                else:
+                    st.info(f"**Cálculo:** La empresa no tiene deuda, se asigna tasa base = **{kd_neto:.1%}**")
+                
+                # Pesos (We y Wd)
+                st.write("**D. Estructura de Capital (Pesos):** Qué porcentaje de la empresa se financia con accionistas (We) y qué porcentaje con bancos (Wd).")
+                st.info(f"**Peso Accionistas (We):** Representa el **{peso_e:.1%}** del financiamiento total.")
+                st.info(f"**Peso Bancos (Wd):** Representa el **{peso_d:.1%}** del financiamiento total.")
+                
+            else:
+                st.info(f"**Cálculo:** Tasa final de descuento calculada por el algoritmo = **{dato.get('WACC', 0):.1%}**")
+                st.caption("💡 *Nota: El desglose matemático exacto aparecerá después de la próxima actualización de tu robot.*")
+        
         st.divider()
 
         # CONCLUSIÓN
@@ -308,3 +376,4 @@ with tab2:
         
     else:
         st.info("⚠️ Aún no se han cargado los datos contables completos. Espera a la próxima actualización del robot.")
+
