@@ -183,6 +183,12 @@ def valorar_empresa(ticker_symbol):
             "Ventas Totales": ventas,
             "EBIT": ebit,
             "Gastos por Intereses": gastos_int
+            # --- NUEVOS CAMPOS WACC ---
+            "Beta": beta,
+            "Ke": ke,
+            "Kd Neto": kd_neto,
+            "Peso Equity": peso_e,
+            "Peso Deuda": peso_d
         }
 
     except Exception as e:
@@ -232,6 +238,7 @@ if not df_final.empty:
     print(f"💾 Guardado: {len(df_final)} oportunidades encontradas.")
 else:
     print("⚠️ No se encontraron oportunidades que cumplan los criterios.")
+
 
 
 
