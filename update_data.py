@@ -232,7 +232,7 @@ if not df_final.empty:
         
     print("💾 Conectando a Supabase (PostgreSQL)...")
     # Pon tu URL real de Supabase aquí para el robot
-    URL_SUPABASE = "postgresql://postgres:[Guate@2021xyz]@db.mayauvnugqgxgffxvdgi.supabase.co:5432/postgres"
+    URL_SUPABASE = "postgresql://postgres:Guate@2021xyz@db.mayauvnugqgxgffxvdgi.supabase.co:5432/postgres"
     
     motor = create_engine(URL_SUPABASE)
     
