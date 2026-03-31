@@ -1,32 +1,33 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import sqlite3
+from sqlalchemy import create_engine, text
 import hashlib
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Radar de Valor", page_icon="🎯", layout="wide")
 
 # ==========================================
-# 1. MOTOR DE BASE DE DATOS Y USUARIOS
+# 1. MOTOR DE BASE DE DATOS Y USUARIOS (NUBE)
 # ==========================================
+# Llamamos a la bóveda secreta de Streamlit
+DB_URL = st.secrets["DB_URL"]
+motor = create_engine(DB_URL)
+
 def init_db():
-    conn = sqlite3.connect('radar_valor.db')
-    c = conn.cursor()
-    # Tabla de Usuarios
-    c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT)''')
-    # Tabla de Portafolios
-    c.execute('''CREATE TABLE IF NOT EXISTS portafolios 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario_id INTEGER, ticker TEXT, 
-                 FOREIGN KEY(usuario_id) REFERENCES usuarios(id))''')
-    conn.commit()
-    return conn
+    with motor.connect() as conn:
+        # PostgreSQL usa SERIAL en lugar de AUTOINCREMENT
+        conn.execute(text('''CREATE TABLE IF NOT EXISTS usuarios 
+                     (id SERIAL PRIMARY KEY, username TEXT UNIQUE, password TEXT)'''))
+        conn.execute(text('''CREATE TABLE IF NOT EXISTS portafolios 
+                     (id SERIAL PRIMARY KEY, usuario_id INTEGER, ticker TEXT, 
+                     FOREIGN KEY(usuario_id) REFERENCES usuarios(id))'''))
+        conn.commit()
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-conn = init_db()
+init_db()
 
 # Variables de Sesión
 if 'usuario_id' not in st.session_state:
@@ -34,20 +35,15 @@ if 'usuario_id' not in st.session_state:
     st.session_state['username'] = None
 
 # --- CARGAR DATOS DEL ROBOT ---
-@st.cache_data(ttl=600) # Se actualiza cada 10 min
+@st.cache_data(ttl=600)
 def cargar_datos_maestros():
     try:
-        # Leemos directo de la tabla SQL que creó tu robot
-        df = pd.read_sql("SELECT * FROM acciones_maestro", conn)
+        df = pd.read_sql("SELECT * FROM acciones_maestro", motor)
         return df
-    except:
+    except Exception as e:
         return pd.DataFrame()
 
 df = cargar_datos_maestros()
-
-if df.empty:
-    st.error("⚠️ La base de datos aún se está construyendo o el robot no ha terminado su ejecución.")
-    st.stop()
 
 # ==========================================
 # 2. BARRA LATERAL: LOGIN Y FILTROS
