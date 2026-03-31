@@ -35,10 +35,10 @@ jobs:
       - name: Ejecutar análisis de valoración
         run: python update_data.py
 
-      # E. Guardar el nuevo CSV en el repositorio
+      # E. Guardar la Base de Datos y cambios en el repositorio
       - name: Guardar y subir cambios (Commit & Push)
         run: |
           git config --global user.name 'Robot Inversor'
           git config --global user.email 'robot@tu-repo.com'
-          git add resultados_valoracion_filtrados.csv
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Actualización automática de precios" && git push)
+          git add .
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Actualización automática de base de datos SQL" && git push)
