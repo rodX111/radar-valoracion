@@ -1,379 +1,281 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import sqlite3
+import hashlib
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Radar de Valor", page_icon="🎯", layout="wide")
 
-# --- TÍTULO PRINCIPAL ---
-st.title("🎯 El Radar de Valor Democratizado")
-st.markdown("**Objetivo:** Encontrar empresas sólidas del S&P 500 que cotizan por debajo de su valor real.")
+# ==========================================
+# 1. MOTOR DE BASE DE DATOS Y USUARIOS
+# ==========================================
+def init_db():
+    conn = sqlite3.connect('radar_valor.db')
+    c = conn.cursor()
+    # Tabla de Usuarios
+    c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT)''')
+    # Tabla de Portafolios
+    c.execute('''CREATE TABLE IF NOT EXISTS portafolios 
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario_id INTEGER, ticker TEXT, 
+                 FOREIGN KEY(usuario_id) REFERENCES usuarios(id))''')
+    conn.commit()
+    return conn
 
-# --- CARGAR DATOS ---
-@st.cache_data(ttl=3600)
-def cargar_datos():
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+conn = init_db()
+
+# Variables de Sesión
+if 'usuario_id' not in st.session_state:
+    st.session_state['usuario_id'] = None
+    st.session_state['username'] = None
+
+# --- CARGAR DATOS DEL ROBOT ---
+@st.cache_data(ttl=600) # Se actualiza cada 10 min
+def cargar_datos_maestros():
     try:
-        return pd.read_csv("resultados_valoracion_filtrados.csv")
+        # Leemos directo de la tabla SQL que creó tu robot
+        df = pd.read_sql("SELECT * FROM acciones_maestro", conn)
+        return df
     except:
         return pd.DataFrame()
 
-df = cargar_datos()
+df = cargar_datos_maestros()
 
 if df.empty:
-    st.error("⚠️ Aún no hay datos. Espera a que el robot termine de ejecutarse.")
+    st.error("⚠️ La base de datos aún se está construyendo o el robot no ha terminado su ejecución.")
     st.stop()
 
-# --- BARRA LATERAL (FILTROS GLOBALES) ---
-st.sidebar.header("🔍 Configuración")
+# ==========================================
+# 2. BARRA LATERAL: LOGIN Y FILTROS
+# ==========================================
+st.sidebar.title("🔐 Acceso")
+
+if st.session_state['usuario_id'] is None:
+    tab_login, tab_registro = st.sidebar.tabs(["Ingresar", "Registrarse"])
+    
+    with tab_login:
+        user_login = st.text_input("Usuario", key="log_user")
+        pass_login = st.text_input("Contraseña", type="password", key="log_pass")
+        if st.button("Entrar"):
+            c = conn.cursor()
+            c.execute("SELECT id FROM usuarios WHERE username=? AND password=?", (user_login, hash_password(pass_login)))
+            resultado = c.fetchone()
+            if resultado:
+                st.session_state['usuario_id'] = resultado[0]
+                st.session_state['username'] = user_login
+                st.rerun()
+            else:
+                st.error("Usuario o contraseña incorrectos.")
+                
+    with tab_registro:
+        user_reg = st.text_input("Nuevo Usuario", key="reg_user")
+        pass_reg = st.text_input("Nueva Contraseña", type="password", key="reg_pass")
+        if st.button("Crear Cuenta"):
+            try:
+                c = conn.cursor()
+                c.execute("INSERT INTO usuarios (username, password) VALUES (?, ?)", (user_reg, hash_password(pass_reg)))
+                conn.commit()
+                st.success("¡Cuenta creada! Ya puedes ingresar.")
+            except sqlite3.IntegrityError:
+                st.error("Ese nombre de usuario ya existe.")
+else:
+    st.sidebar.success(f"Hola, **{st.session_state['username']}** 👋")
+    if st.sidebar.button("Cerrar Sesión"):
+        st.session_state['usuario_id'] = None
+        st.session_state['username'] = None
+        st.rerun()
+
+st.sidebar.markdown("---")
+st.sidebar.header("🔍 Configuración del Radar")
 if 'Ultima Actualizacion' in df.columns:
     st.sidebar.info(f"📅 Datos del: **{df['Ultima Actualizacion'].iloc[0]}**")
 
 min_upside = st.sidebar.slider("Upside Mínimo (%)", 0, 100, 10)
 ticker_buscar = st.sidebar.text_input("Buscar Ticker o Empresa", "").upper()
 
-# --- SELECTOR DE SECTOR ---
-if 'Sector' in df.columns:
-    lista_sectores = ["Todos"] + sorted(df['Sector'].dropna().unique().tolist())
-    sector_buscar = st.sidebar.selectbox("🏢 Filtrar por Sector", lista_sectores)
-else:
-    sector_buscar = "Todos"
+# --- SELECTORES ---
+lista_sectores = ["Todos"] + sorted(df['Sector'].dropna().unique().tolist()) if 'Sector' in df.columns else ["Todos"]
+sector_buscar = st.sidebar.selectbox("🏢 Filtrar por Sector", lista_sectores)
 
-# --- NUEVO: SELECTOR DE DECISIÓN ---
-if 'Decisión' in df.columns:
-    # Creamos una lista con las decisiones únicas y le agregamos "Todas" al inicio
-    lista_decisiones = ["Todas"] + sorted(df['Decisión'].dropna().unique().tolist())
-    decision_buscar = st.sidebar.selectbox("⚖️ Filtrar por Decisión", lista_decisiones)
-else:
-    decision_buscar = "Todas"
+lista_decisiones = ["Todas"] + sorted(df['Decisión'].dropna().unique().tolist()) if 'Decisión' in df.columns else ["Todas"]
+decision_buscar = st.sidebar.selectbox("⚖️ Filtrar por Decisión", lista_decisiones)
 
 # ==========================================
-# APLICAR FILTROS EN CASCADA
+# 3. MOTOR DE FILTROS EN CASCADA Y KPIs
 # ==========================================
-df_filtrado = df[df['Upside Potencial'] > (min_upside/100)]
+# Filtramos solo para las pestañas de Radar (el Portafolio usará el df completo)
+df_radar = df[df['Upside Potencial'] > (min_upside/100)].copy()
 
 if ticker_buscar:
-    df_filtrado = df_filtrado[
-        df_filtrado['Ticker'].str.contains(ticker_buscar) | 
-        df_filtrado['Empresa'].str.upper().str.contains(ticker_buscar)
-    ]
-
+    df_radar = df_radar[df_radar['Ticker'].str.contains(ticker_buscar) | df_radar['Empresa'].str.upper().str.contains(ticker_buscar)]
 if sector_buscar != "Todos":
-    df_filtrado = df_filtrado[df_filtrado['Sector'] == sector_buscar]
-
+    df_radar = df_radar[df_radar['Sector'] == sector_buscar]
 if decision_buscar != "Todas":
-    df_filtrado = df_filtrado[df_filtrado['Decisión'] == decision_buscar]
+    df_radar = df_radar[df_radar['Decisión'] == decision_buscar]
 
-# ==========================================
-# ESCUDO ANTI-CRASH
-# ==========================================
-if df_filtrado.empty:
-    st.warning("🕵️‍♂️ No se encontró ninguna empresa que cumpla con todos estos filtros.")
-    st.info("💡 Intenta relajar los filtros (ej. cambia la Decisión a 'Todas' o baja el 'Upside Mínimo').")
-    st.stop() 
+# Cálculo Global de Salud Financiera para TODO el DataFrame
+if 'Activo Circulante' in df.columns:
+    pas_circ = df['Pasivo Circulante'].replace(0, 1).fillna(1)
+    act_tot = df['Activo Total'].replace(0, 1).fillna(1)
+    ventas = df['Ventas Totales'].replace(0, 1).fillna(1)
+    gastos_int = df['Gastos por Intereses'].replace(0, 1).fillna(1)
 
-# ==========================================
-# CÁLCULO GLOBAL DE SALUD FINANCIERA
-# ==========================================
-if 'Activo Circulante' in df_filtrado.columns:
-    pas_circ_seguro = df_filtrado['Pasivo Circulante'].replace(0, 1).fillna(1)
-    act_tot_seguro = df_filtrado['Activo Total'].replace(0, 1).fillna(1)
-    ventas_seguro = df_filtrado['Ventas Totales'].replace(0, 1).fillna(1)
-    gastos_int_seguro = df_filtrado['Gastos por Intereses'].replace(0, 1).fillna(1)
+    pa = (df['Activo Circulante'].fillna(0) - df['Inventario'].fillna(0)) / pas_circ
+    rc = df['Activo Circulante'].fillna(0) / pas_circ
+    end = df['Pasivo Total'].fillna(0) / act_tot
+    mn = df['Utilidad Neta'].fillna(0) / ventas
+    ci = df['EBIT'].fillna(0) / gastos_int
 
-    pa = (df_filtrado['Activo Circulante'].fillna(0) - df_filtrado['Inventario'].fillna(0)) / pas_circ_seguro
-    rc = df_filtrado['Activo Circulante'].fillna(0) / pas_circ_seguro
-    end = df_filtrado['Pasivo Total'].fillna(0) / act_tot_seguro
-    mn = df_filtrado['Utilidad Neta'].fillna(0) / ventas_seguro
-    ci = df_filtrado['EBIT'].fillna(0) / gastos_int_seguro
-
-    df_filtrado['Todo_Verde'] = (pa >= 1) & (rc >= 1.5) & (end < 0.50) & (mn > 0.10) & (ci > 3)
-    df_filtrado['Salud Financiera'] = df_filtrado['Todo_Verde'].apply(lambda x: '🟢 Impecable' if x else '🟡 Con Riesgos')
+    df['Todo_Verde'] = (pa >= 1) & (rc >= 1.5) & (end < 0.50) & (mn > 0.10) & (ci > 3)
+    df['Salud Financiera'] = df['Todo_Verde'].apply(lambda x: '🟢 Impecable' if x else '🟡 Con Riesgos')
+    
+    # Sincronizamos el df_radar con los nuevos cálculos
+    df_radar = df.loc[df_radar.index].copy()
 else:
-    df_filtrado['Todo_Verde'] = False
-    df_filtrado['Salud Financiera'] = 'Pendiente...'
+    df['Todo_Verde'] = False
+    df['Salud Financiera'] = 'Pendiente...'
+    df_radar['Salud Financiera'] = 'Pendiente...'
 
-# --- CREACIÓN DE PESTAÑAS ---
-tab1, tab2 = st.tabs(["📉 Radar de Oportunidades", "🛡️ Estrategia de Portafolio"])
+# ==========================================
+# 4. INTERFAZ PRINCIPAL (PESTAÑAS)
+# ==========================================
+st.title("🎯 El Radar de Valor Democratizado")
+st.markdown("**Objetivo:** Encontrar empresas sólidas del S&P 500 que cotizan por debajo de su valor real.")
 
-# ==============================================================================
-# PESTAÑA 1: RADAR DE VALOR (TABLA + CAJA DE CRISTAL)
-# ==============================================================================
+# --- NUEVA PESTAÑA: MI PORTAFOLIO ---
+tab1, tab2, tab3 = st.tabs(["📉 Radar de Oportunidades", "🛡️ Estrategia de Portafolio", "💼 Mi Portafolio (Alertas)"])
+
+# ------------------------------------------
+# PESTAÑA 1: RADAR Y CAJA DE CRISTAL
+# ------------------------------------------
 with tab1:
-    st.subheader(f"🏆 Oportunidades Detectadas ({len(df_filtrado)})")
-
-    # Añadimos 'Salud Financiera' a las columnas de la tabla principal
-    cols_mostrar = ['Ticker', 'Empresa', 'Sector', 'Precio', 'Valor Justo', 'Upside Potencial', 'Decisión', 'Salud Financiera']
+    st.subheader(f"🏆 Oportunidades Detectadas ({len(df_radar)})")
     
-    if 'Sector' not in df_filtrado.columns:
-        df_filtrado['Sector'] = "Pendiente..."
-
-    st.dataframe(
-        df_filtrado[cols_mostrar].style.format({
-            "Precio": "${:.2f}",
-            "Valor Justo": "${:.2f}",
-            "Upside Potencial": "{:.1%}"
-        }),
-        use_container_width=True
-    )
-
-    # --- CAJA DE CRISTAL ---
-    st.markdown("---")
-    st.header("💎 Caja de Cristal: Auditoría")
-    st.info("Selecciona una empresa para ver el desglose matemático paso a paso.")
-
-    df_filtrado['Etiqueta_Selector'] = df_filtrado['Ticker'] + " - " + df_filtrado['Empresa']
-    lista_empresas = sorted(df_filtrado['Etiqueta_Selector'].tolist())
-    seleccion_etiqueta = st.selectbox("Selecciona empresa a auditar:", lista_empresas)
-
-    if seleccion_etiqueta:
-        ticker_seleccionado = seleccion_etiqueta.split(" - ")[0]
-        dato = df_filtrado[df_filtrado['Ticker'] == ticker_seleccionado].iloc[0]
-
-        st.subheader(f"Auditoría de: {dato['Empresa']} ({dato['Ticker']})")
-
-        # PASO 1
-        st.markdown("##### 1️⃣ Paso 1: Deuda Real (Enterprise Value)")
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Deuda Total", f"${dato['Deuda Total']:,.0f}", help="Deuda con bancos.")
-        c2.metric("(-) Total Cash", f"${dato['Total Cash']:,.0f}", help="Efectivo en caja.")
-        c3.metric("(=) Deuda Neta", f"${dato['Deuda Neta']:,.0f}", delta="Pasivo Real", delta_color="inverse")
-
-        st.divider()
-
-        # PASO 2
-        st.markdown("##### 2️⃣ Paso 2: La Fórmula Maestra")
-        st.latex(r"Valor = \frac{FCF \times (1 + g)}{WACC - g}")
-        
-        c4, c5, c6 = st.columns(3)
-        c4.metric("Flujo de Caja (FCF)", f"${dato['FCF']:,.0f}")
-        c5.metric("Crecimiento (g)", f"{dato['Crecimiento (g)']:.1%}")
-        c6.metric("Riesgo (WACC)", f"{dato['WACC']:.1%}")
-
-        # ==========================================
-        # DESGLOSE DE FÓRMULA MAESTRA 
-        # ==========================================
-        with st.expander("🔍 Ver origen matemático de FCF, g y WACC"):
-            
-            # FCF
-            st.markdown("#### 1. Flujo de Caja Libre (FCF)")
-            st.write("Es el efectivo real que la empresa puede 'meterse al bolsillo' después de pagar sus operaciones y mantener su maquinaria (CapEx).")
-            st.markdown("**Fórmula:** Flujo de Caja Operativo - Gastos de Capital")
-            st.info(f"**Origen:** Dato extraído directamente de los reportes anuales = **${dato.get('FCF', 0):,.0f}**")
-
-            # Crecimiento (g)
-            st.markdown("#### 2. Tasa de Crecimiento (g)")
-            st.write("Cuánto crecerá la empresa. Para evitar la especulación, aplicamos una regla conservadora: nunca proyectar un crecimiento perpetuo mayor al crecimiento promedio de la economía (3%).")
-            st.markdown("**Fórmula:** Mínimo entre (Proyección de Analistas, 3%)")
-            st.info(f"**Cálculo:** Tasa conservadora aplicada al modelo = **{dato.get('Crecimiento (g)', 0):.1%}**")
-
-            # WACC
-            st.markdown("#### 3. Costo Promedio Ponderado de Capital (WACC)")
-            st.write("Es el riesgo de la inversión. Mezcla cuánto le cuesta a la empresa pedir préstamos bancarios (Costo de Deuda) y cuánto rendimiento le exigen sus accionistas (Costo de Capital, vía CAPM).")
-            st.markdown("**Fórmula:** (We × Ke) + (Wd × Kd × (1 - t))")
-            
-            # Extracción segura de los nuevos componentes del WACC
-            ke = dato.get('Ke', 0)
-            
-            if ke > 0: # Si el CSV ya tiene los datos nuevos detallados
-                peso_e = dato.get('Peso Equity', 1)
-                peso_d = dato.get('Peso Deuda', 0)
-                kd_neto = dato.get('Kd Neto', 0)
-                beta = dato.get('Beta', 1)
-                
-                # Variables extras para el cálculo visual
-                gastos_int = dato.get('Gastos por Intereses', 0)
-                deuda_total = dato.get('Deuda Total', 0)
-                
-                st.info(f"**Cálculo Final WACC:** ({peso_e:.1%} × {ke:.1%}) + ({peso_d:.1%} × {kd_neto:.1%}) = **{dato.get('WACC', 0):.1%}**")
-                
-                # --- DESGLOSE DE LOS INGREDIENTES DEL WACC ---
-                st.markdown("---")
-                st.markdown("##### 🧩 Desglose Matemático de Ingredientes")
-                
-                # Beta
-                st.write("**A. Riesgo de Mercado (Beta):** Mide la volatilidad de la acción frente al mercado. Un Beta > 1 significa que es más riesgosa que el mercado. Un Beta < 1 es más estable.")
-                st.info(f"**Origen:** Dato extraído de Yahoo Finance = **{beta:.2f}**")
-                
-                # Ke (Costo de Equity)
-                st.write("**B. Costo de Capital (Ke):** El rendimiento mínimo que exigen los accionistas por asumir el riesgo de invertir aquí. Se calcula con el modelo CAPM.")
-                st.markdown("**Fórmula:** Tasa Libre de Riesgo + (Beta × Prima de Riesgo de Mercado)")
-                st.info(f"**Cálculo:** 4.2% + ({beta:.2f} × 5.5%) = **{ke:.1%}**")
-                st.caption("*(Nota: 4.2% y 5.5% son estimaciones macroeconómicas estándar configuradas en tu motor de Python).*")
-                
-                # Kd (Costo de Deuda Neto)
-                st.write("**C. Costo de Deuda Neto (Kd):** La tasa de interés real que paga la empresa por su deuda, restando el beneficio fiscal (asumiendo 21% de impuestos).")
-                st.markdown("**Fórmula:** (Gastos por Intereses / Deuda Total) × (1 - 0.21)")
-                if deuda_total > 0:
-                    st.info(f"**Cálculo:** (${gastos_int:,.0f} / ${deuda_total:,.0f}) × 0.79 = **{kd_neto:.1%}**")
-                else:
-                    st.info(f"**Cálculo:** La empresa no tiene deuda, se asigna tasa base = **{kd_neto:.1%}**")
-                
-                # Pesos (We y Wd)
-                st.write("**D. Estructura de Capital (Pesos):** Qué porcentaje de la empresa se financia con accionistas (We) y qué porcentaje con bancos (Wd).")
-                st.info(f"**Peso Accionistas (We):** Representa el **{peso_e:.1%}** del financiamiento total.")
-                st.info(f"**Peso Bancos (Wd):** Representa el **{peso_d:.1%}** del financiamiento total.")
-                
-            else:
-                st.info(f"**Cálculo:** Tasa final de descuento calculada por el algoritmo = **{dato.get('WACC', 0):.1%}**")
-                st.caption("💡 *Nota: El desglose matemático exacto aparecerá después de la próxima actualización de tu robot.*")
-        
-        st.divider()
-
-        # CONCLUSIÓN
-        st.subheader("🎯 Veredicto Final")
-        precio_max = dato.get('Precio Max Compra', dato['Valor Justo'] * 0.8)
-        
-        k1, k2, k3 = st.columns(3)
-        k1.metric("Valor Justo", f"${dato['Valor Justo']:.2f}")
-        k2.metric("Margen Seguridad", "20%")
-        k3.metric("Precio MÁXIMO Compra", f"${precio_max:.2f}", delta="Tu Límite", delta_color="normal")
-
-        # ==========================================
-        # RAZONES FINANCIERAS (KPIs)
-        # ==========================================
-        st.divider()
-        st.subheader("📚 KPIs y Razones Financieras")
-        st.write("Evaluación de la salud de la empresa paso a paso:")
-
-        act_circ = dato.get('Activo Circulante', 0)
-        inv = dato.get('Inventario', 0)
-        pas_circ = dato.get('Pasivo Circulante', 1) 
-        act_tot = dato.get('Activo Total', 1)
-        pas_tot = dato.get('Pasivo Total', 0)
-        util_neta = dato.get('Utilidad Neta', 0)
-        ventas = dato.get('Ventas Totales', 1)
-        ebit = dato.get('EBIT', 0) 
-        gastos_int = dato.get('Gastos por Intereses', 1) 
-
-        # 1. PRUEBA ÁCIDA
-        st.markdown("##### 🧪 1. Prueba Ácida")
-        st.write("Mide la capacidad de pagar deudas a corto plazo sin depender de vender el inventario.")
-        st.markdown("**Fórmula:** (Activo Circulante - Inventarios) / Pasivos circulantes")
-        prueba_acida = (act_circ - inv) / pas_circ
-        texto_pa = f"**Cálculo:** ({act_circ:,.0f} - {inv:,.0f}) / {pas_circ:,.0f} = **{prueba_acida:.2f}**"
-        
-        if prueba_acida >= 1:
-            st.success(texto_pa + " ✅ (Buena liquidez)")
-        else:
-            st.error(texto_pa + " 🚨 (Riesgo de liquidez a corto plazo)")
-
-        # 2. RAZÓN CIRCULANTE (LIQUIDEZ)
-        st.markdown("##### 💧 2. Razón Circulante")
-        st.write("Indica si la empresa tiene suficientes activos a corto plazo para cubrir sus deudas a corto plazo.")
-        st.markdown("**Fórmula:** Activo Circulante / Pasivo Circulante")
-        razon_circulante = act_circ / pas_circ
-        texto_rc = f"**Cálculo:** {act_circ:,.0f} / {pas_circ:,.0f} = **{razon_circulante:.2f}**"
-        
-        if razon_circulante >= 1.5:
-            st.success(texto_rc + " ✅ (Liquidez holgada)")
-        elif razon_circulante >= 1:
-            st.warning(texto_rc + " ⚠️ (Liquidez justa)")
-        else:
-            st.error(texto_rc + " 🚨 (Falta de liquidez)")
-
-        # 3. RAZÓN DE ENDEUDAMIENTO
-        st.markdown("##### ⚖️ 3. Razón de Endeudamiento")
-        st.write("Mide qué porcentaje de los activos totales de la empresa está financiado por deuda.")
-        st.markdown("**Fórmula:** Pasivo Total / Activo Total")
-        endeudamiento = pas_tot / act_tot
-        texto_end = f"**Cálculo:** {pas_tot:,.0f} / {act_tot:,.0f} = **{endeudamiento:.1%}**" 
-        
-        if endeudamiento < 0.50:
-            st.success(texto_end + " ✅ (Sano, menor al 50%)")
-        else:
-            st.warning(texto_end + " ⚠️ (Alto endeudamiento, mayor al 50%)")
-
-        # 4. MARGEN DE UTILIDAD NETA
-        st.markdown("##### 💵 4. Margen de Utilidad Neta")
-        st.write("Mide cuánto de cada dólar en ventas se convierte en ganancia real.")
-        st.markdown("**Fórmula:** (Utilidad Neta / Ventas Totales) * 100")
-        margen_neto = (util_neta / ventas)
-        texto_mn = f"**Cálculo:** ({util_neta:,.0f} / {ventas:,.0f}) * 100 = **{margen_neto:.2%}**"
-        
-        if margen_neto > 0.10: 
-            st.success(texto_mn + " ✅ (Buen margen)")
-        elif margen_neto > 0:
-            st.warning(texto_mn + " ⚠️ (Margen estrecho)")
-        else:
-            st.error(texto_mn + " 🚨 (La empresa está perdiendo dinero)")
-
-        # 5. COBERTURA DE INTERESES
-        st.markdown("##### 🛡️ 5. Cobertura de Intereses")
-        st.write("Mide cuántas veces la empresa puede pagar sus gastos por intereses con su utilidad operativa.")
-        st.markdown("**Fórmula:** Utilidad Operativa (EBIT) / Gastos por Intereses")
-        cobertura_int = ebit / gastos_int
-        texto_ci = f"**Cálculo:** {ebit:,.0f} / {gastos_int:,.0f} = **{cobertura_int:.2f}x**"
-        
-        if cobertura_int > 3:
-            st.success(texto_ci + " ✅ (Cobertura segura, mayor a 3x)")
-        elif cobertura_int > 1.5:
-            st.warning(texto_ci + " ⚠️ (Cobertura ajustada)")
-        else:
-            st.error(texto_ci + " 🚨 (Peligro de impago, menor a 1.5x)")
-
-# ==============================================================================
-# PESTAÑA 2: ESTRATEGIA DE PORTAFOLIO 
-# ==============================================================================
-with tab2:
-    st.header("🛡️ Gestión de Riesgo y Sectores")
-    
-    if 'Sector' in df_filtrado.columns and 'Activo Circulante' in df_filtrado.columns:
-        
-        # 1. GRÁFICO DE SECTORES
-        col_pie, col_info = st.columns([2, 1])
-        
-        with col_pie:
-            fig = px.pie(df_filtrado, names='Sector', title='Distribución de Oportunidades por Sector', hole=0.4)
-            fig.update_traces(textinfo='percent+label')
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col_info:
-            st.warning("💡 **Tip de Inversión:**")
-            st.write("No compres todas las acciones del mismo color. Si el sector **Tecnología** cae, querrás tener algo en **Consumo Defensivo** o **Salud** para compensar.")
-            
-            if not df_filtrado.empty:
-                top_sector = df_filtrado['Sector'].value_counts().idxmax()
-                st.write(f"⚠️ Tu mayor exposición actual es a: **{top_sector}**")
-
-        st.markdown("---")
-        
-        # 2. LAS MEJORES DE CADA CLASE
-        st.subheader("💎 Las Mejores de Cada Sector (Filtro de Calidad)")
-        st.write("Seleccionamos la opción con **mayor Upside** de cada industria, priorizando aquellas que tienen **salud financiera perfecta** (Todo en Verde).")
-        
-        mejores_lista = []
-        sectores = df_filtrado['Sector'].unique()
-        
-        for s in sectores:
-            df_sector = df_filtrado[df_filtrado['Sector'] == s]
-            df_verdes = df_sector[df_sector['Todo_Verde'] == True]
-            
-            if not df_verdes.empty:
-                mejor = df_verdes.loc[df_verdes['Upside Potencial'].idxmax()].copy()
-            else:
-                mejor = df_sector.loc[df_sector['Upside Potencial'].idxmax()].copy()
-            
-            mejores_lista.append(mejor)
-            
-        mejores_sector = pd.DataFrame(mejores_lista)
-        
-        cols_finales = ['Sector', 'Ticker', 'Empresa', 'Precio', 'Upside Potencial', 'Salud Financiera']
-        
-        def colorear_filas(row):
-            if row['Salud Financiera'] == '🟡 Con Riesgos':
-                return ['background-color: #4d4d00; color: white'] * len(row) 
-            elif row['Salud Financiera'] == '🟢 Impecable':
-                return ['background-color: #003311; color: white'] * len(row) 
-            return [''] * len(row)
-
+    if not df_radar.empty:
+        cols_mostrar = ['Ticker', 'Empresa', 'Sector', 'Precio', 'Valor Justo', 'Upside Potencial', 'Decisión', 'Salud Financiera']
         st.dataframe(
-            mejores_sector[cols_finales].style.apply(colorear_filas, axis=1).format({
-                "Precio": "${:.2f}",
-                "Upside Potencial": "{:.1%}"
-            }),
+            df_radar[cols_mostrar].style.format({"Precio": "${:.2f}", "Valor Justo": "${:.2f}", "Upside Potencial": "{:.1%}"}),
             use_container_width=True
         )
-        
-    else:
-        st.info("⚠️ Aún no se han cargado los datos contables completos. Espera a la próxima actualización del robot.")
 
+        # --- CAJA DE CRISTAL ---
+        st.markdown("---")
+        st.header("💎 Caja de Cristal: Auditoría")
+        
+        df_radar['Etiqueta_Selector'] = df_radar['Ticker'] + " - " + df_radar['Empresa']
+        seleccion_etiqueta = st.selectbox("Selecciona empresa a auditar:", sorted(df_radar['Etiqueta_Selector'].tolist()))
+
+        if seleccion_etiqueta:
+            ticker_sel = seleccion_etiqueta.split(" - ")[0]
+            dato = df_radar[df_radar['Ticker'] == ticker_sel].iloc[0]
+
+            st.subheader(f"Auditoría de: {dato['Empresa']}")
+            
+            c4, c5, c6 = st.columns(3)
+            c4.metric("Flujo de Caja (FCF)", f"${dato.get('FCF', 0):,.0f}")
+            c5.metric("Crecimiento (g)", f"{dato.get('Crecimiento (g)', 0):.1%}")
+            c6.metric("Riesgo (WACC)", f"{dato.get('WACC', 0):.1%}")
+            
+            with st.expander("🔍 Ver origen matemático de FCF, g y WACC"):
+                st.latex(r"WACC = (W_e \times K_e) + (W_d \times K_d \times (1 - t))")
+                st.info(f"**WACC Final:** {dato.get('WACC', 0):.1%}")
+            
+            # Veredicto
+            st.divider()
+            st.subheader("🎯 Veredicto Final")
+            k1, k2, k3 = st.columns(3)
+            k1.metric("Precio Actual", f"${dato['Precio']:.2f}")
+            k2.metric("Valor Justo", f"${dato['Valor Justo']:.2f}")
+            k3.metric("Upside Potencial", f"{dato['Upside Potencial']:.1%}", delta=dato['Decisión'])
+    else:
+        st.warning("🕵️‍♂️ No se encontró ninguna empresa que cumpla con los filtros.")
+
+# ------------------------------------------
+# PESTAÑA 2: ESTRATEGIA
+# ------------------------------------------
+with tab2:
+    st.header("🛡️ Gestión de Riesgo y Sectores")
+    if not df_radar.empty and 'Sector' in df_radar.columns:
+        fig = px.pie(df_radar, names='Sector', title='Distribución por Sector', hole=0.4)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No hay datos suficientes para graficar.")
+
+# ------------------------------------------
+# PESTAÑA 3: MI PORTAFOLIO (SEGUIMIENTO)
+# ------------------------------------------
+with tab3:
+    st.header("💼 Seguimiento de Portafolio")
+    
+    if st.session_state['usuario_id'] is None:
+        st.warning("🔒 **Inicia sesión o regístrate en la barra lateral para crear tu portafolio.**")
+        st.write("Aquí podrás agregar las empresas en las que ya invertiste. El radar vigilará su precio todos los días y te avisará con una alerta roja cuando alcancen su Valor Justo para que puedas tomar ganancias.")
+    else:
+        usuario_id = st.session_state['usuario_id']
+        
+        # 1. Formulario para agregar Ticker
+        st.subheader("➕ Agregar Empresa")
+        col_t, col_b = st.columns([3, 1])
+        with col_t:
+            # Lista de todos los tickers en la base maestra
+            todos_los_tickers = sorted(df['Ticker'].unique().tolist())
+            ticker_nuevo = st.selectbox("Selecciona el Ticker:", [""] + todos_los_tickers)
+        with col_b:
+            st.write("") # Espaciador
+            st.write("")
+            if st.button("Guardar en Portafolio", use_container_width=True):
+                if ticker_nuevo:
+                    # Validar que no esté repetido
+                    c = conn.cursor()
+                    c.execute("SELECT id FROM portafolios WHERE usuario_id=? AND ticker=?", (usuario_id, ticker_nuevo))
+                    if not c.fetchone():
+                        c.execute("INSERT INTO portafolios (usuario_id, ticker) VALUES (?, ?)", (usuario_id, ticker_nuevo))
+                        conn.commit()
+                        st.success(f"{ticker_nuevo} agregado.")
+                        st.rerun()
+                    else:
+                        st.warning("Esa empresa ya está en tu portafolio.")
+                        
+        st.markdown("---")
+        
+        # 2. Mostrar la tabla del Portafolio Personal
+        st.subheader("📊 Mis Posiciones Actuales")
+        
+        # Consultamos los tickers guardados por el usuario
+        df_mis_tickers = pd.read_sql(f"SELECT ticker FROM portafolios WHERE usuario_id={usuario_id}", conn)
+        
+        if not df_mis_tickers.empty:
+            lista_mis_tickers = df_mis_tickers['ticker'].tolist()
+            
+            # Cruzamos los tickers del usuario con la tabla maestra completa
+            mi_portafolio = df[df['Ticker'].isin(lista_mis_tickers)].copy()
+            
+            # Función para resaltar si es hora de vender
+            def colorear_alertas(row):
+                if row['Decisión'] == 'MANTENER/VENTA':
+                    return ['background-color: #8B0000; color: white'] * len(row) # Rojo oscuro
+                return [''] * len(row)
+                
+            cols_portafolio = ['Ticker', 'Empresa', 'Precio', 'Valor Justo', 'Upside Potencial', 'Decisión', 'Salud Financiera']
+            
+            st.dataframe(
+                mi_portafolio[cols_portafolio].style.apply(colorear_alertas, axis=1).format({
+                    "Precio": "${:.2f}",
+                    "Valor Justo": "${:.2f}",
+                    "Upside Potencial": "{:.1%}"
+                }),
+                use_container_width=True
+            )
+            
+            # Botón para limpiar portafolio
+            if st.button("🗑️ Eliminar empresa seleccionada"):
+                st.info("💡 Tip: Para eliminar, puedes conectar un botón de borrado SQL más adelante, o borrar el archivo `.db` para reiniciar el entorno de pruebas.")
+        else:
+            st.info("Aún no tienes empresas en seguimiento. Selecciona una en el menú de arriba.")
+
+# Cerramos conexión al final
+conn.close()
