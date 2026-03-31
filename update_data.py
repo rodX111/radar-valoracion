@@ -4,7 +4,7 @@ import requests
 import numpy as np
 from datetime import date
 import time
-import sqlite3  # <--- NUEVO: El motor de base de datos
+from sqlalchemy import create_engine # <--- NUEVO
 
 # ==========================================
 # 1. CONFIGURACIÓN Y CONSTANTES
@@ -226,31 +226,19 @@ df_final = pd.DataFrame(resultados)
 
 # Filtros de Calidad y Guardado
 if not df_final.empty:
-    # Filtramos basura: WACC lógico y Upside no infinito
     df_final = df_final[df_final['WACC'] >= 0.04] 
     df_final = df_final[df_final['Upside Potencial'] <= 3.0] 
-        
-    # Agregamos Fecha
     df_final['Ultima Actualizacion'] = date.today().strftime('%d/%m/%Y')
         
-    # ==========================================
-    # NUEVO: GUARDAR EN BASE DE DATOS SQLITE
-    # ==========================================
-    print("💾 Conectando a la base de datos SQL...")
+    print("💾 Conectando a Supabase (PostgreSQL)...")
+    # Pon tu URL real de Supabase aquí para el robot
+    URL_SUPABASE = "postgresql://postgres:[Guate@2021xyz]@db.mayauvnugqgxgffxvdgi.supabase.co:5432/postgres"
     
-    # Crea el archivo radar_valor.db automáticamente si no existe
-    conexion = sqlite3.connect('radar_valor.db') 
+    motor = create_engine(URL_SUPABASE)
     
-    # Exportamos el DataFrame completo a una tabla SQL. 
-    # Usamos if_exists='replace' para que el robot actualice los datos frescos cada vez que corra.
-    df_final.to_sql('acciones_maestro', conexion, if_exists='replace', index=False)
+    # Mandamos los datos a la nube
+    df_final.to_sql('acciones_maestro', motor, if_exists='replace', index=False)
     
-    conexion.close()
-    print(f"✅ Base de datos actualizada: {len(df_final)} empresas guardadas en la tabla 'acciones_maestro'.")
-
+    print(f"✅ Base de datos en la nube actualizada: {len(df_final)} empresas guardadas.")
 else:
-    print("⚠️ No se encontraron oportunidades que cumplan los criterios.")
-
-
-
-
+    print("⚠️ No se encontraron oportunidades.")
