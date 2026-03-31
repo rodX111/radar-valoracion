@@ -3,7 +3,8 @@ import pandas as pd
 import requests
 import numpy as np
 from datetime import date
-import time  # <--- NUEVO: Librería para controlar el tiempo
+import time
+import sqlite3  # <--- NUEVO: El motor de base de datos
 
 # ==========================================
 # 1. CONFIGURACIÓN Y CONSTANTES
@@ -227,19 +228,28 @@ df_final = pd.DataFrame(resultados)
 if not df_final.empty:
     # Filtramos basura: WACC lógico y Upside no infinito
     df_final = df_final[df_final['WACC'] >= 0.04] 
-    df_final = df_final[df_final['Upside Potencial'] <= 3.0] # Descartar errores de >300% upside (suelen ser fallos de datos)
-    df_final = df_final[df_final['Upside Potencial'] > 0]
+    df_final = df_final[df_final['Upside Potencial'] <= 3.0] 
         
     # Agregamos Fecha
     df_final['Ultima Actualizacion'] = date.today().strftime('%d/%m/%Y')
         
-    # Guardamos
-    df_final.to_csv('resultados_valoracion_filtrados.csv', index=False)
-    print(f"💾 Guardado: {len(df_final)} oportunidades encontradas.")
+    # ==========================================
+    # NUEVO: GUARDAR EN BASE DE DATOS SQLITE
+    # ==========================================
+    print("💾 Conectando a la base de datos SQL...")
+    
+    # Crea el archivo radar_valor.db automáticamente si no existe
+    conexion = sqlite3.connect('radar_valor.db') 
+    
+    # Exportamos el DataFrame completo a una tabla SQL. 
+    # Usamos if_exists='replace' para que el robot actualice los datos frescos cada vez que corra.
+    df_final.to_sql('acciones_maestro', conexion, if_exists='replace', index=False)
+    
+    conexion.close()
+    print(f"✅ Base de datos actualizada: {len(df_final)} empresas guardadas en la tabla 'acciones_maestro'.")
+
 else:
     print("⚠️ No se encontraron oportunidades que cumplan los criterios.")
-
-
 
 
 
