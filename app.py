@@ -227,9 +227,9 @@ with tab3:
                 if ticker_nuevo:
                     # Validar que no esté repetido
                     c = conn.cursor()
-                    c.execute("SELECT id FROM portafolios WHERE usuario_id=? AND ticker=?", (usuario_id, ticker_nuevo))
+                    c.execute(text("SELECT id FROM portafolios WHERE usuario_id=? AND ticker=?"), (usuario_id, ticker_nuevo))
                     if not c.fetchone():
-                        c.execute("INSERT INTO portafolios (usuario_id, ticker) VALUES (?, ?)", (usuario_id, ticker_nuevo))
+                        c.execute(text("INSERT INTO portafolios (usuario_id, ticker) VALUES (?, ?)"), (usuario_id, ticker_nuevo))
                         conn.commit()
                         st.success(f"{ticker_nuevo} agregado.")
                         st.rerun()
