@@ -58,7 +58,7 @@ if st.session_state['usuario_id'] is None:
         pass_login = st.text_input("Contraseña", type="password", key="log_pass")
         if st.button("Entrar"):
             c = conn.cursor()
-            c.execute("SELECT id FROM usuarios WHERE username=? AND password=?", (user_login, hash_password(pass_login)))
+            c.execute(text("SELECT id FROM usuarios WHERE username=? AND password=?"), (user_login, hash_password(pass_login)))
             resultado = c.fetchone()
             if resultado:
                 st.session_state['usuario_id'] = resultado[0]
@@ -73,7 +73,7 @@ if st.session_state['usuario_id'] is None:
         if st.button("Crear Cuenta"):
             try:
                 c = conn.cursor()
-                c.execute("INSERT INTO usuarios (username, password) VALUES (?, ?)", (user_reg, hash_password(pass_reg)))
+                c.execute(text("INSERT INTO usuarios (username, password) VALUES (?, ?)"), (user_reg, hash_password(pass_reg)))
                 conn.commit()
                 st.success("¡Cuenta creada! Ya puedes ingresar.")
             except sqlite3.IntegrityError:
