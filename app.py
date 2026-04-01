@@ -35,40 +35,25 @@ if 'usuario_id' not in st.session_state:
     st.session_state['username'] = None
 
 # --- CARGAR DATOS DEL ROBOT ---
-# --- CARGAR DATOS DEL ROBOT ---
-@st.cache_data(ttl=600)
+# Apagamos el caché temporalmente con (ttl=0) para forzar la recarga
+@st.cache_data(ttl=0)
 def cargar_datos_maestros():
     try:
-        # Extraemos la tabla directamente desde Supabase
         df = pd.read_sql("SELECT * FROM acciones_maestro", motor)
-        return df
+        return df, None
     except Exception as e:
-        print(f"Error de conexión SQL: {e}")
-        return pd.DataFrame()
+        # Si falla, devolvemos el error exacto
+        return pd.DataFrame(), str(e)
 
-df = cargar_datos_maestros()
+df, error_msg = cargar_datos_maestros()
 
-# 1. PARADA DE EMERGENCIA (Si falló la conexión)
+# --- DIAGNÓSTICO EN PANTALLA ---
 if df.empty:
-    st.error("⚠️ La base de datos cargó vacía o la conexión falló. Verifica tus Streamlit Secrets.")
+    st.error(f"🚨 Fallo de conexión o tabla vacía. El error real es: {error_msg}")
     st.stop()
-
-# 2. EL PARCHE ANTI-POSTGRESQL (Fuerza las mayúsculas correctas)
-# Esto arregla el problema si la base de datos devolvió 'upside potencial' en minúsculas
-mapa_columnas = {
-    'ticker': 'Ticker', 'empresa': 'Empresa', 'sector': 'Sector',
-    'precio': 'Precio', 'valor justo': 'Valor Justo', 
-    'upside potencial': 'Upside Potencial', 'decisión': 'Decisión', 
-    'salud financiera': 'Salud Financiera', 'todo_verde': 'Todo_Verde',
-    'ultima actualizacion': 'Ultima Actualizacion'
-}
-# Renombramos automáticamente cualquier columna que venga en minúsculas
-df.rename(columns=lambda x: mapa_columnas.get(x.lower(), x), inplace=True)
-
-# 3. RAYOS X (Diagnóstico visual si el error persiste)
-if 'Upside Potencial' not in df.columns:
-    st.error("🚨 La conexión fue exitosa, pero las columnas están corruptas.")
-    st.warning(f"🔍 Columnas reales entregadas por PostgreSQL: {df.columns.tolist()}")
+elif 'Upside Potencial' not in df.columns:
+    st.error("⚠️ La conexión fue exitosa pero la columna tiene un nombre inesperado.")
+    st.warning(f"🔍 Las columnas que Streamlit está viendo son: {df.columns.tolist()}")
     st.stop()
 
 # ==========================================
