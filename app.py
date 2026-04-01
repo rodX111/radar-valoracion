@@ -34,29 +34,15 @@ if 'usuario_id' not in st.session_state:
     st.session_state['usuario_id'] = None
     st.session_state['username'] = None
 
-
 # --- CARGAR DATOS DEL ROBOT ---
-# --- CARGAR DATOS DEL ROBOT ---
-@st.cache_data(ttl=0)
+@st.cache_data(ttl=600)
 def cargar_datos_maestros():
     try:
-        # 1. LA BALA DE PLATA: Le damos la URL secreta DIRECTAMENTE a Pandas.
-        # Esto obliga a Pandas a gestionar la conexión por su cuenta sin errores de cursor.
+        # Usamos la URL directa para evitar errores de cursor con Pandas 3.0
         url_secreta = st.secrets["DB_URL"]
         df = pd.read_sql("SELECT * FROM acciones_maestro", con=url_secreta)
-            
-        # 2. El Parche Anti-PostgreSQL (Recupera tus mayúsculas)
-        df.columns = df.columns.str.title()
         
-        renombres_exactos = {
-            'Wacc': 'WACC',
-            'Fcf': 'FCF',
-            'Ebit': 'EBIT',
-            'Crecimiento (G)': 'Crecimiento (g)',
-            'Todo_Verde': 'Todo_Verde'
-        }
-        df.rename(columns=renombres_exactos, inplace=True)
-        
+        # Eliminamos el parche de renombrado porque Supabase respetó el formato original
         return df, None
     except Exception as e:
         return pd.DataFrame(), str(e)
