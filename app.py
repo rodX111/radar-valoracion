@@ -120,7 +120,7 @@ if sector_buscar != "Todos":
 if decision_buscar != "Todas":
     df_radar = df_radar[df_radar['Decisión'] == decision_buscar]
 
-# Cálculo de Salud Financiera (Variables para la Caja de Cristal)
+# Cálculo de Salud Financiera
 if 'Activo Circulante' in df.columns:
     pas_circ = df['Pasivo Circulante'].replace(0, 1).fillna(1)
     act_tot = df['Activo Total'].replace(0, 1).fillna(1)
@@ -171,14 +171,45 @@ with tab1:
 
             st.subheader(f"Auditoría de: {dato['Empresa']}")
             
-            # --- SECCIÓN 1: COMPONENTES DE VALORACIÓN (ESTILO APP 5) ---
+            # --- SECCIÓN 1: COMPONENTES DE VALORACIÓN ---
             st.write("#### 1. Variables del Modelo DCF")
             c1, c2, c3 = st.columns(3)
             c1.metric("Flujo de Caja (FCF)", f"${dato.get('FCF', 0):,.0f}")
             c2.metric("Crecimiento (g)", f"{dato.get('Crecimiento (g)', 0):.1%}")
             c3.metric("Riesgo (WACC)", f"{dato.get('WACC', 0):.1%}")
 
-            # --- SECCIÓN 2: RIESGO Y SALUD (ESTILO APP 5) ---
+            # --- NUEVA SECCIÓN: DESGLOSE MATEMÁTICO ---
+            with st.expander("🧮 Ver desglose matemático exacto (Paso a Paso)", expanded=False):
+                # Extracción de variables
+                wacc = dato.get('WACC', 0)
+                g = dato.get('Crecimiento (g)', 0)
+                fcf = dato.get('FCF', 0)
+                peso_e = dato.get('Peso Equity', 0)
+                ke = dato.get('Ke', 0)
+                peso_d = dato.get('Peso Deuda', 0)
+                kd = dato.get('Kd Neto', 0)
+                total_cash = dato.get('Total Cash', 0)
+                deuda_total = dato.get('Deuda Total', 0)
+                valor_justo = dato.get('Valor Justo', 0)
+                
+                # Reconstrucción matemática en vivo
+                ev = (fcf * (1 + g)) / (wacc - g) if (wacc - g) > 0 else 0
+                equity_value = ev + total_cash - deuda_total
+                acciones = equity_value / valor_justo if valor_justo > 0 else 0
+                
+                st.markdown("**Paso 1: Tasa de Descuento (WACC)**")
+                st.latex(rf"WACC = ({peso_e:.1\%} \times {ke:.1\%}) + ({peso_d:.1\%} \times {kd:.1\%}) = {wacc:.1\%}")
+                
+                st.markdown("**Paso 2: Valor de la Empresa (Enterprise Value)**")
+                st.latex(rf"EV = \frac{{\${fcf:,.0f} \times (1 + {g:.1\%})}}{{{wacc:.1\%} - {g:.1\%}}} = \${ev:,.0f}")
+                
+                st.markdown("**Paso 3: Valor para el Accionista (Equity Value)**")
+                st.latex(rf"Equity = \${ev:,.0f} + \${total_cash:,.0f} - \${deuda_total:,.0f} = \${equity_value:,.0f}")
+                
+                st.markdown("**Paso 4: Valor Justo por Acción**")
+                st.latex(rf"Valor Justo = \frac{{\${equity_value:,.0f}}}{{{acciones:,.0f} \text{{ acciones estimadas}}}} = \${valor_justo:.2f}")
+
+            # --- SECCIÓN 2: RIESGO Y SALUD ---
             with st.expander("🛡️ Análisis de Riesgo y Salud Financiera", expanded=True):
                 col_salud, col_desc = st.columns([1, 3])
                 col_salud.metric("Estado General", dato['Salud Financiera'])
@@ -186,17 +217,13 @@ with tab1:
                 
                 st.write("##### Razones Financieras Clave")
                 r1, r2, r3, r4, r5 = st.columns(5)
-                
-                # Liquidez
                 r1.metric("Prueba Ácida", f"{dato.get('PA', 0):.2f}", help="Ideal > 1.0")
                 r2.metric("Razón Circulante", f"{dato.get('RC', 0):.2f}", help="Ideal > 1.5")
-                # Solvencia
                 r3.metric("Endeudamiento", f"{dato.get('END', 0):.1%}", help="Ideal < 50%")
                 r4.metric("Cobertura Int.", f"{dato.get('CI', 0):.1f}x", help="Ideal > 3.0")
-                # Rentabilidad
                 r5.metric("Margen Neto", f"{dato.get('MN', 0):.1%}", help="Ideal > 10%")
 
-            # --- SECCIÓN 3: VERDICTO FINAL (ESTILO APP 5) ---
+            # --- SECCIÓN 3: VEREDICTO FINAL ---
             st.divider()
             st.subheader("🎯 Veredicto Final")
             v1, v2, v3 = st.columns(3)
