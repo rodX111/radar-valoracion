@@ -10,13 +10,11 @@ st.set_page_config(page_title="Radar de Valor", page_icon="🎯", layout="wide")
 # ==========================================
 # 1. MOTOR DE BASE DE DATOS Y USUARIOS (NUBE)
 # ==========================================
-# Llamamos a la bóveda secreta de Streamlit
 DB_URL = st.secrets["DB_URL"]
 motor = create_engine(DB_URL)
 
 def init_db():
     with motor.connect() as conn:
-        # PostgreSQL usa SERIAL en lugar de AUTOINCREMENT
         conn.execute(text('''CREATE TABLE IF NOT EXISTS usuarios 
                      (id SERIAL PRIMARY KEY, username TEXT UNIQUE, password TEXT)'''))
         conn.execute(text('''CREATE TABLE IF NOT EXISTS portafolios 
@@ -29,7 +27,6 @@ def hash_password(password):
 
 init_db()
 
-# Variables de Sesión
 if 'usuario_id' not in st.session_state:
     st.session_state['usuario_id'] = None
     st.session_state['username'] = None
@@ -38,17 +35,14 @@ if 'usuario_id' not in st.session_state:
 @st.cache_data(ttl=600)
 def cargar_datos_maestros():
     try:
-        # Usamos la URL directa para evitar errores de cursor con Pandas 3.0
         url_secreta = st.secrets["DB_URL"]
         df = pd.read_sql("SELECT * FROM acciones_maestro", con=url_secreta)
-        
         return df, None
     except Exception as e:
         return pd.DataFrame(), str(e)
 
 df, error_msg = cargar_datos_maestros()
 
-# --- DIAGNÓSTICO EN PANTALLA ---
 if df.empty:
     st.error(f"🚨 Fallo al leer los datos. El error es: {error_msg}")
     st.stop()
@@ -115,9 +109,8 @@ lista_decisiones = ["Todas"] + sorted(df['Decisión'].dropna().unique().tolist()
 decision_buscar = st.sidebar.selectbox("⚖️ Filtrar por Decisión", lista_decisiones)
 
 # ==========================================
-# 3. MOTOR DE FILTROS EN CASCADA Y KPIs
+# 3. MOTOR DE FILTROS Y KPIs DE SALUD
 # ==========================================
-# Filtramos solo para las pestañas de Radar (el Portafolio usará el df completo)
 df_radar = df[df['Upside Potencial'] > (min_upside/100)].copy()
 
 if ticker_buscar:
@@ -127,41 +120,35 @@ if sector_buscar != "Todos":
 if decision_buscar != "Todas":
     df_radar = df_radar[df_radar['Decisión'] == decision_buscar]
 
-# Cálculo Global de Salud Financiera para TODO el DataFrame
+# Cálculo de Salud Financiera 
 if 'Activo Circulante' in df.columns:
     pas_circ = df['Pasivo Circulante'].replace(0, 1).fillna(1)
     act_tot = df['Activo Total'].replace(0, 1).fillna(1)
     ventas = df['Ventas Totales'].replace(0, 1).fillna(1)
     gastos_int = df['Gastos por Intereses'].replace(0, 1).fillna(1)
 
-    pa = (df['Activo Circulante'].fillna(0) - df['Inventario'].fillna(0)) / pas_circ
-    rc = df['Activo Circulante'].fillna(0) / pas_circ
-    end = df['Pasivo Total'].fillna(0) / act_tot
-    mn = df['Utilidad Neta'].fillna(0) / ventas
-    ci = df['EBIT'].fillna(0) / gastos_int
+    df['PA'] = (df['Activo Circulante'].fillna(0) - df['Inventario'].fillna(0)) / pas_circ
+    df['RC'] = df['Activo Circulante'].fillna(0) / pas_circ
+    df['END'] = df['Pasivo Total'].fillna(0) / act_tot
+    df['MN'] = df['Utilidad Neta'].fillna(0) / ventas
+    df['CI'] = df['EBIT'].fillna(0) / gastos_int
 
-    df['Todo_Verde'] = (pa >= 1) & (rc >= 1.5) & (end < 0.50) & (mn > 0.10) & (ci > 3)
+    df['Todo_Verde'] = (df['PA'] >= 1) & (df['RC'] >= 1.5) & (df['END'] < 0.50) & (df['MN'] > 0.10) & (df['CI'] > 3)
     df['Salud Financiera'] = df['Todo_Verde'].apply(lambda x: '🟢 Impecable' if x else '🟡 Con Riesgos')
     
-    # Sincronizamos el df_radar con los nuevos cálculos
     df_radar = df.loc[df_radar.index].copy()
 else:
-    df['Todo_Verde'] = False
     df['Salud Financiera'] = 'Pendiente...'
-    df_radar['Salud Financiera'] = 'Pendiente...'
 
 # ==========================================
-# 4. INTERFAZ PRINCIPAL (PESTAÑAS)
+# 4. INTERFAZ PRINCIPAL
 # ==========================================
 st.title("🎯 El Radar de Valor Democratizado")
 st.markdown("**Objetivo:** Encontrar empresas sólidas del S&P 500 que cotizan por debajo de su valor real.")
 
-# --- NUEVA PESTAÑA: MI PORTAFOLIO ---
 tab1, tab2, tab3 = st.tabs(["📉 Radar de Oportunidades", "🛡️ Estrategia de Portafolio", "💼 Mi Portafolio (Alertas)"])
 
-# ------------------------------------------
 # PESTAÑA 1: RADAR Y CAJA DE CRISTAL
-# ------------------------------------------
 with tab1:
     st.subheader(f"🏆 Oportunidades Detectadas ({len(df_radar)})")
     
@@ -172,7 +159,6 @@ with tab1:
             use_container_width=True
         )
 
-        # --- CAJA DE CRISTAL ---
         st.markdown("---")
         st.header("💎 Caja de Cristal: Auditoría")
         
@@ -185,115 +171,67 @@ with tab1:
 
             st.subheader(f"Auditoría de: {dato['Empresa']}")
             
-            c4, c5, c6 = st.columns(3)
-            c4.metric("Flujo de Caja (FCF)", f"${dato.get('FCF', 0):,.0f}")
-            c5.metric("Crecimiento (g)", f"{dato.get('Crecimiento (g)', 0):.1%}")
-            c6.metric("Riesgo (WACC)", f"{dato.get('WACC', 0):.1%}")
+            # Fila 1: Componentes de Valoración
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Flujo de Caja (FCF)", f"${dato.get('FCF', 0):,.0f}")
+            c2.metric("Crecimiento (g)", f"{dato.get('Crecimiento (g)', 0):.1%}")
+            c3.metric("Riesgo (WACC)", f"{dato.get('WACC', 0):.1%}")
             
-            with st.expander("🔍 Ver origen matemático de FCF, g y WACC"):
-                st.latex(r"WACC = (W_e \times K_e) + (W_d \times K_d \times (1 - t))")
-                st.info(f"**WACC Final:** {dato.get('WACC', 0):.1%}")
-            
-            # Veredicto
+            # Fila 2: Razones Financieras (Lo que se había perdido)
+            st.write("### 📊 Razones Financieras")
+            r1, r2, r3, r4, r5 = st.columns(5)
+            r1.metric("Prueba Ácida", f"{dato.get('PA', 0):.2f}", help="Ideal > 1.0 (Liquidez inmediata)")
+            r2.metric("Razón Circulante", f"{dato.get('RC', 0):.2f}", help="Ideal > 1.5 (Capacidad de pago)")
+            r3.metric("Endeudamiento", f"{dato.get('END', 0):.1%}", help="Ideal < 50% (Solvencia)")
+            r4.metric("Margen Neto", f"{dato.get('MN', 0):.1%}", help="Ideal > 10% (Rentabilidad)")
+            r5.metric("Cobertura Int.", f"{dato.get('CI', 0):.1f}x", help="Ideal > 3.0 (Capacidad de pago de deuda)")
+
             st.divider()
             st.subheader("🎯 Veredicto Final")
-            k1, k2, k3 = st.columns(3)
-            k1.metric("Precio Actual", f"${dato['Precio']:.2f}")
-            k2.metric("Valor Justo", f"${dato['Valor Justo']:.2f}")
-            k3.metric("Upside Potencial", f"{dato['Upside Potencial']:.1%}", delta=dato['Decisión'])
+            v1, v2, v3 = st.columns(3)
+            v1.metric("Precio Actual", f"${dato['Precio']:.2f}")
+            v2.metric("Valor Justo", f"${dato['Valor Justo']:.2f}")
+            v3.metric("Upside Potencial", f"{dato['Upside Potencial']:.1%}", delta=dato['Decisión'])
     else:
         st.warning("🕵️‍♂️ No se encontró ninguna empresa que cumpla con los filtros.")
 
-# ------------------------------------------
-# PESTAÑA 2: ESTRATEGIA
-# ------------------------------------------
+# PESTAÑA 2: ESTRATEGIA (Top 10) [cite: 3]
 with tab2:
-    st.header("🛡️ Gestión de Riesgo y Sectores")
+    st.header("🛡️ Gestión de Riesgo y Calidad")
+    st.subheader("🏆 El Top 10 Absoluto")
+    df_top10 = df_radar[df_radar['Todo_Verde'] == True].nlargest(10, 'Upside Potencial')
+    if not df_top10.empty:
+        st.dataframe(df_top10[['Ticker', 'Empresa', 'Upside Potencial', 'Salud Financiera']].style.format({"Upside Potencial": "{:.1%}"}), use_container_width=True)
+    
     if not df_radar.empty and 'Sector' in df_radar.columns:
-        fig = px.pie(df_radar, names='Sector', title='Distribución por Sector', hole=0.4)
+        fig = px.pie(df_radar, names='Sector', title='Distribución de Oportunidades por Sector', hole=0.4)
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No hay datos suficientes para graficar.")
 
-# ------------------------------------------
-# PESTAÑA 3: MI PORTAFOLIO (SEGUIMIENTO)
-# ------------------------------------------
+# PESTAÑA 3: MI PORTAFOLIO
 with tab3:
     st.header("💼 Seguimiento de Portafolio")
     
     if st.session_state['usuario_id'] is None:
-        st.warning("🔒 **Inicia sesión o regístrate en la barra lateral para crear tu portafolio.**")
-        st.write("Aquí podrás agregar las empresas en las que ya invertiste. El radar vigilará su precio todos los días y te avisará con una alerta roja cuando alcancen su Valor Justo para que puedas tomar ganancias.")
+        st.warning("🔒 Inicia sesión para crear tu portafolio.")
     else:
         usuario_id = st.session_state['usuario_id']
-        
-        # 1. Formulario para agregar Ticker
         st.subheader("➕ Agregar Empresa")
-        col_t, col_b = st.columns([3, 1])
-        with col_t:
-            # Lista de todos los tickers en la base maestra
-            todos_los_tickers = sorted(df['Ticker'].unique().tolist())
-            ticker_nuevo = st.selectbox("Selecciona el Ticker:", [""] + todos_los_tickers)
-        with col_b:
-            st.write("") # Espaciador
-            st.write("")
-            if st.button("Guardar en Portafolio", use_container_width=True):
-                if ticker_nuevo:
-                    with motor.connect() as conn:
-                        # Validar que no esté repetido
-                        existe = conn.execute(
-                            text("SELECT id FROM portafolios WHERE usuario_id=:uid AND ticker=:t"), 
-                            {"uid": usuario_id, "t": ticker_nuevo}
-                        ).fetchone()
-                        
-                        if not existe:
-                            conn.execute(
-                                text("INSERT INTO portafolios (usuario_id, ticker) VALUES (:uid, :t)"), 
-                                {"uid": usuario_id, "t": ticker_nuevo}
-                            )
-                            conn.commit()
-                            st.success(f"{ticker_nuevo} agregado.")
-                            st.rerun()
-                        else:
-                            st.warning("Esa empresa ya está en tu portafolio.")
-                        
+        todos_los_tickers = sorted(df['Ticker'].unique().tolist())
+        ticker_nuevo = st.selectbox("Selecciona el Ticker:", [""] + todos_los_tickers)
+        
+        if st.button("Guardar en Portafolio"):
+            if ticker_nuevo:
+                with motor.connect() as conn:
+                    existe = conn.execute(text("SELECT id FROM portafolios WHERE usuario_id=:uid AND ticker=:t"), {"uid": usuario_id, "t": ticker_nuevo}).fetchone()
+                    if not existe:
+                        conn.execute(text("INSERT INTO portafolios (usuario_id, ticker) VALUES (:uid, :t)"), {"uid": usuario_id, "t": ticker_nuevo})
+                        conn.commit()
+                        st.success(f"{ticker_nuevo} agregado.")
+                        st.rerun()
+        
         st.markdown("---")
-        
-        # 2. Mostrar la tabla del Portafolio Personal
-        st.subheader("📊 Mis Posiciones Actuales")
-        
-        # Consultamos los tickers guardados por el usuario
-        df_mis_tickers = pd.read_sql(
-            text("SELECT ticker FROM portafolios WHERE usuario_id=:uid"), 
-            motor, 
-            params={"uid": usuario_id}
-        )
+        df_mis_tickers = pd.read_sql(text("SELECT ticker FROM portafolios WHERE usuario_id=:uid"), motor, params={"uid": usuario_id})
         
         if not df_mis_tickers.empty:
-            lista_mis_tickers = df_mis_tickers['ticker'].tolist()
-            
-            # Cruzamos los tickers del usuario con la tabla maestra completa
-            mi_portafolio = df[df['Ticker'].isin(lista_mis_tickers)].copy()
-            
-            # Función para resaltar si es hora de vender
-            def colorear_alertas(row):
-                if row['Decisión'] == 'MANTENER/VENTA':
-                    return ['background-color: #8B0000; color: white'] * len(row) # Rojo oscuro
-                return [''] * len(row)
-                
-            cols_portafolio = ['Ticker', 'Empresa', 'Precio', 'Valor Justo', 'Upside Potencial', 'Decisión', 'Salud Financiera']
-            
-            st.dataframe(
-                mi_portafolio[cols_portafolio].style.apply(colorear_alertas, axis=1).format({
-                    "Precio": "${:.2f}",
-                    "Valor Justo": "${:.2f}",
-                    "Upside Potencial": "{:.1%}"
-                }),
-                use_container_width=True
-            )
-            
-            # Botón para limpiar portafolio
-            if st.button("🗑️ Eliminar empresa seleccionada"):
-                st.info("💡 Tip: Para eliminar, puedes conectar un botón de borrado SQL más adelante, o borrar el archivo `.db` para reiniciar el entorno de pruebas.")
-        else:
-            st.info("Aún no tienes empresas en seguimiento. Selecciona una en el menú de arriba.")
+            mi_portafolio = df[df['Ticker'].isin(df_mis_tickers['ticker'].tolist())].copy()
+            st.dataframe(mi_portafolio[['Ticker', 'Empresa', 'Precio', 'Valor Justo', 'Upside Potencial', 'Decisión']].style.format({"Precio": "${:.2f}", "Valor Justo": "${:.2f}", "Upside Potencial": "{:.1%}"}), use_container_width=True)
