@@ -120,7 +120,7 @@ if sector_buscar != "Todos":
 if decision_buscar != "Todas":
     df_radar = df_radar[df_radar['Decisión'] == decision_buscar]
 
-# Cálculo de Salud Financiera 
+# Cálculo de Salud Financiera (Variables para la Caja de Cristal)
 if 'Activo Circulante' in df.columns:
     pas_circ = df['Pasivo Circulante'].replace(0, 1).fillna(1)
     act_tot = df['Activo Total'].replace(0, 1).fillna(1)
@@ -171,21 +171,32 @@ with tab1:
 
             st.subheader(f"Auditoría de: {dato['Empresa']}")
             
-            # Fila 1: Componentes de Valoración
+            # --- SECCIÓN 1: COMPONENTES DE VALORACIÓN (ESTILO APP 5) ---
+            st.write("#### 1. Variables del Modelo DCF")
             c1, c2, c3 = st.columns(3)
             c1.metric("Flujo de Caja (FCF)", f"${dato.get('FCF', 0):,.0f}")
             c2.metric("Crecimiento (g)", f"{dato.get('Crecimiento (g)', 0):.1%}")
             c3.metric("Riesgo (WACC)", f"{dato.get('WACC', 0):.1%}")
-            
-            # Fila 2: Razones Financieras (Lo que se había perdido)
-            st.write("### 📊 Razones Financieras")
-            r1, r2, r3, r4, r5 = st.columns(5)
-            r1.metric("Prueba Ácida", f"{dato.get('PA', 0):.2f}", help="Ideal > 1.0 (Liquidez inmediata)")
-            r2.metric("Razón Circulante", f"{dato.get('RC', 0):.2f}", help="Ideal > 1.5 (Capacidad de pago)")
-            r3.metric("Endeudamiento", f"{dato.get('END', 0):.1%}", help="Ideal < 50% (Solvencia)")
-            r4.metric("Margen Neto", f"{dato.get('MN', 0):.1%}", help="Ideal > 10% (Rentabilidad)")
-            r5.metric("Cobertura Int.", f"{dato.get('CI', 0):.1f}x", help="Ideal > 3.0 (Capacidad de pago de deuda)")
 
+            # --- SECCIÓN 2: RIESGO Y SALUD (ESTILO APP 5) ---
+            with st.expander("🛡️ Análisis de Riesgo y Salud Financiera", expanded=True):
+                col_salud, col_desc = st.columns([1, 3])
+                col_salud.metric("Estado General", dato['Salud Financiera'])
+                col_desc.info("Los indicadores a continuación validan si la empresa tiene la solidez necesaria para sobrevivir a largo plazo.")
+                
+                st.write("##### Razones Financieras Clave")
+                r1, r2, r3, r4, r5 = st.columns(5)
+                
+                # Liquidez
+                r1.metric("Prueba Ácida", f"{dato.get('PA', 0):.2f}", help="Ideal > 1.0")
+                r2.metric("Razón Circulante", f"{dato.get('RC', 0):.2f}", help="Ideal > 1.5")
+                # Solvencia
+                r3.metric("Endeudamiento", f"{dato.get('END', 0):.1%}", help="Ideal < 50%")
+                r4.metric("Cobertura Int.", f"{dato.get('CI', 0):.1f}x", help="Ideal > 3.0")
+                # Rentabilidad
+                r5.metric("Margen Neto", f"{dato.get('MN', 0):.1%}", help="Ideal > 10%")
+
+            # --- SECCIÓN 3: VERDICTO FINAL (ESTILO APP 5) ---
             st.divider()
             st.subheader("🎯 Veredicto Final")
             v1, v2, v3 = st.columns(3)
@@ -195,7 +206,7 @@ with tab1:
     else:
         st.warning("🕵️‍♂️ No se encontró ninguna empresa que cumpla con los filtros.")
 
-# PESTAÑA 2: ESTRATEGIA (Top 10) [cite: 3]
+# PESTAÑA 2: ESTRATEGIA
 with tab2:
     st.header("🛡️ Gestión de Riesgo y Calidad")
     st.subheader("🏆 El Top 10 Absoluto")
