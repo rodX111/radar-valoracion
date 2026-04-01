@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, exc
 import hashlib
 
 # --- CONFIGURACIÓN DE PÁGINA ---
@@ -42,7 +42,6 @@ def cargar_datos_maestros():
         url_secreta = st.secrets["DB_URL"]
         df = pd.read_sql("SELECT * FROM acciones_maestro", con=url_secreta)
         
-        # Eliminamos el parche de renombrado porque Supabase respetó el formato original
         return df, None
     except Exception as e:
         return pd.DataFrame(), str(e)
@@ -66,26 +65,32 @@ if st.session_state['usuario_id'] is None:
         user_login = st.text_input("Usuario", key="log_user")
         pass_login = st.text_input("Contraseña", type="password", key="log_pass")
         if st.button("Entrar"):
-            c = conn.cursor()
-            c.execute(text("SELECT id FROM usuarios WHERE username=? AND password=?"), (user_login, hash_password(pass_login)))
-            resultado = c.fetchone()
-            if resultado:
-                st.session_state['usuario_id'] = resultado[0]
-                st.session_state['username'] = user_login
-                st.rerun()
-            else:
-                st.error("Usuario o contraseña incorrectos.")
+            with motor.connect() as conn:
+                resultado = conn.execute(
+                    text("SELECT id FROM usuarios WHERE username=:u AND password=:p"), 
+                    {"u": user_login, "p": hash_password(pass_login)}
+                ).fetchone()
+                
+                if resultado:
+                    st.session_state['usuario_id'] = resultado[0]
+                    st.session_state['username'] = user_login
+                    st.rerun()
+                else:
+                    st.error("Usuario o contraseña incorrectos.")
                 
     with tab_registro:
         user_reg = st.text_input("Nuevo Usuario", key="reg_user")
         pass_reg = st.text_input("Nueva Contraseña", type="password", key="reg_pass")
         if st.button("Crear Cuenta"):
             try:
-                c = conn.cursor()
-                c.execute(text("INSERT INTO usuarios (username, password) VALUES (?, ?)"), (user_reg, hash_password(pass_reg)))
-                conn.commit()
-                st.success("¡Cuenta creada! Ya puedes ingresar.")
-            except sqlite3.IntegrityError:
+                with motor.connect() as conn:
+                    conn.execute(
+                        text("INSERT INTO usuarios (username, password) VALUES (:u, :p)"), 
+                        {"u": user_reg, "p": hash_password(pass_reg)}
+                    )
+                    conn.commit()
+                    st.success("¡Cuenta creada! Ya puedes ingresar.")
+            except exc.IntegrityError:
                 st.error("Ese nombre de usuario ya existe.")
 else:
     st.sidebar.success(f"Hola, **{st.session_state['username']}** 👋")
@@ -234,16 +239,23 @@ with tab3:
             st.write("")
             if st.button("Guardar en Portafolio", use_container_width=True):
                 if ticker_nuevo:
-                    # Validar que no esté repetido
-                    c = conn.cursor()
-                    c.execute(text("SELECT id FROM portafolios WHERE usuario_id=? AND ticker=?"), (usuario_id, ticker_nuevo))
-                    if not c.fetchone():
-                        c.execute(text("INSERT INTO portafolios (usuario_id, ticker) VALUES (?, ?)"), (usuario_id, ticker_nuevo))
-                        conn.commit()
-                        st.success(f"{ticker_nuevo} agregado.")
-                        st.rerun()
-                    else:
-                        st.warning("Esa empresa ya está en tu portafolio.")
+                    with motor.connect() as conn:
+                        # Validar que no esté repetido
+                        existe = conn.execute(
+                            text("SELECT id FROM portafolios WHERE usuario_id=:uid AND ticker=:t"), 
+                            {"uid": usuario_id, "t": ticker_nuevo}
+                        ).fetchone()
+                        
+                        if not existe:
+                            conn.execute(
+                                text("INSERT INTO portafolios (usuario_id, ticker) VALUES (:uid, :t)"), 
+                                {"uid": usuario_id, "t": ticker_nuevo}
+                            )
+                            conn.commit()
+                            st.success(f"{ticker_nuevo} agregado.")
+                            st.rerun()
+                        else:
+                            st.warning("Esa empresa ya está en tu portafolio.")
                         
         st.markdown("---")
         
@@ -251,7 +263,11 @@ with tab3:
         st.subheader("📊 Mis Posiciones Actuales")
         
         # Consultamos los tickers guardados por el usuario
-        df_mis_tickers = pd.read_sql(f"SELECT ticker FROM portafolios WHERE usuario_id={usuario_id}", conn)
+        df_mis_tickers = pd.read_sql(
+            text("SELECT ticker FROM portafolios WHERE usuario_id=:uid"), 
+            motor, 
+            params={"uid": usuario_id}
+        )
         
         if not df_mis_tickers.empty:
             lista_mis_tickers = df_mis_tickers['ticker'].tolist()
@@ -281,4 +297,3 @@ with tab3:
                 st.info("💡 Tip: Para eliminar, puedes conectar un botón de borrado SQL más adelante, o borrar el archivo `.db` para reiniciar el entorno de pruebas.")
         else:
             st.info("Aún no tienes empresas en seguimiento. Selecciona una en el menú de arriba.")
-
