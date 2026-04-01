@@ -36,14 +36,16 @@ if 'usuario_id' not in st.session_state:
 
 
 # --- CARGAR DATOS DEL ROBOT ---
+# --- CARGAR DATOS DEL ROBOT ---
 @st.cache_data(ttl=0)
 def cargar_datos_maestros():
     try:
-        # Envolvemos la consulta en text() para compatibilidad estricta con SQLAlchemy 2.0
-        with motor.connect() as conn:
-            df = pd.read_sql(text("SELECT * FROM acciones_maestro"), conn)
+        # 1. LA BALA DE PLATA: Le damos la URL secreta DIRECTAMENTE a Pandas.
+        # Esto obliga a Pandas a gestionar la conexión por su cuenta sin errores de cursor.
+        url_secreta = st.secrets["DB_URL"]
+        df = pd.read_sql("SELECT * FROM acciones_maestro", con=url_secreta)
             
-        # El Parche Anti-PostgreSQL (Recupera tus mayúsculas)
+        # 2. El Parche Anti-PostgreSQL (Recupera tus mayúsculas)
         df.columns = df.columns.str.title()
         
         renombres_exactos = {
