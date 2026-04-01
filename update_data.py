@@ -210,7 +210,7 @@ if __name__ == "__main__":
     
     print(f"🚀 Iniciando análisis de {total} empresas del S&P 1500...")
     
-for i, ticker in enumerate(tickers):
+for i, ticker in enumerate(tickers[:5]):
         print(f"[{i+1}/{total}] Analizando {ticker}...", end="\r") 
         
         datos = valorar_empresa(ticker)
