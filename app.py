@@ -34,26 +34,36 @@ if 'usuario_id' not in st.session_state:
     st.session_state['usuario_id'] = None
     st.session_state['username'] = None
 
+
 # --- CARGAR DATOS DEL ROBOT ---
-# Apagamos el caché temporalmente con (ttl=0) para forzar la recarga
 @st.cache_data(ttl=0)
 def cargar_datos_maestros():
     try:
-        df = pd.read_sql("SELECT * FROM acciones_maestro", motor)
+        # Envolvemos la consulta en text() para compatibilidad estricta con SQLAlchemy 2.0
+        with motor.connect() as conn:
+            df = pd.read_sql(text("SELECT * FROM acciones_maestro"), conn)
+            
+        # El Parche Anti-PostgreSQL (Recupera tus mayúsculas)
+        df.columns = df.columns.str.title()
+        
+        renombres_exactos = {
+            'Wacc': 'WACC',
+            'Fcf': 'FCF',
+            'Ebit': 'EBIT',
+            'Crecimiento (G)': 'Crecimiento (g)',
+            'Todo_Verde': 'Todo_Verde'
+        }
+        df.rename(columns=renombres_exactos, inplace=True)
+        
         return df, None
     except Exception as e:
-        # Si falla, devolvemos el error exacto
         return pd.DataFrame(), str(e)
 
 df, error_msg = cargar_datos_maestros()
 
 # --- DIAGNÓSTICO EN PANTALLA ---
 if df.empty:
-    st.error(f"🚨 Fallo de conexión o tabla vacía. El error real es: {error_msg}")
-    st.stop()
-elif 'Upside Potencial' not in df.columns:
-    st.error("⚠️ La conexión fue exitosa pero la columna tiene un nombre inesperado.")
-    st.warning(f"🔍 Las columnas que Streamlit está viendo son: {df.columns.tolist()}")
+    st.error(f"🚨 Fallo al leer los datos. El error es: {error_msg}")
     st.stop()
 
 # ==========================================
