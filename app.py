@@ -199,15 +199,19 @@ with tab1:
                 acciones = equity_value / valor_justo if valor_justo > 0 else 0
                 
                 st.markdown("**Paso 1: Tasa de Descuento (WACC)**")
+                st.latex(r"WACC = (W_e \times K_e) + (W_d \times K_d \text{ Neto})")
                 st.latex(rf"WACC = ({peso_e*100:.1f}\%) \times ({ke*100:.1f}\%) + ({peso_d*100:.1f}\%) \times ({kd*100:.1f}\%) = {wacc*100:.1f}\%")
                 
                 st.markdown("**Paso 2: Valor de la Empresa (Enterprise Value)**")
+                st.latex(r"EV = \frac{FCF \times (1 + g)}{WACC - g}")
                 st.latex(rf"EV = \frac{{\${fcf:,.0f} \times (1 + {g*100:.1f}\%)}}{{{wacc*100:.1f}\% - {g*100:.1f}\%}} = \${ev:,.0f}")
                 
                 st.markdown("**Paso 3: Valor para el Accionista (Equity Value)**")
+                st.latex(r"Equity = EV + Total Cash - Deuda Total")
                 st.latex(rf"Equity = \${ev:,.0f} + \${total_cash:,.0f} - \${deuda_total:,.0f} = \${equity_value:,.0f}")
                 
                 st.markdown("**Paso 4: Valor Justo por Acción**")
+                st.latex(r"Valor Justo = \frac{Equity Value}{Acciones \text{ en } Circulación}")
                 st.latex(rf"Valor Justo = \frac{{\${equity_value:,.0f}}}{{{acciones:,.0f} \text{{ acciones estimadas}}}} = \${valor_justo:.2f}")
 
             # --- SECCIÓN 2: RIESGO Y SALUD ---
