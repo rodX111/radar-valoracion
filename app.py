@@ -282,5 +282,3 @@ with tab3:
         else:
             st.info("Aún no tienes empresas en seguimiento. Selecciona una en el menú de arriba.")
 
-# Cerramos conexión al final
-conn.close()
