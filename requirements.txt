@@ -5,5 +5,5 @@ requests
 lxml
 openpyxl
 plotly
-SQLAlchemy==2.0.25
+SQLAlchemy>=2.0.36
 pg8000
