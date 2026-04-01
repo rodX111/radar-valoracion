@@ -179,6 +179,7 @@ with tab1:
             c3.metric("Riesgo (WACC)", f"{dato.get('WACC', 0):.1%}")
 
             # --- NUEVA SECCIÓN: DESGLOSE MATEMÁTICO ---
+# --- NUEVA SECCIÓN: DESGLOSE MATEMÁTICO ---
             with st.expander("🧮 Ver desglose matemático exacto (Paso a Paso)", expanded=False):
                 # Extracción de variables
                 wacc = dato.get('WACC', 0)
@@ -198,10 +199,10 @@ with tab1:
                 acciones = equity_value / valor_justo if valor_justo > 0 else 0
                 
                 st.markdown("**Paso 1: Tasa de Descuento (WACC)**")
-                st.latex(rf"WACC = ({peso_e:.1\%} \times {ke:.1\%}) + ({peso_d:.1\%} \times {kd:.1\%}) = {wacc:.1\%}")
+                st.latex(rf"WACC = ({peso_e*100:.1f}\%) \times ({ke*100:.1f}\%) + ({peso_d*100:.1f}\%) \times ({kd*100:.1f}\%) = {wacc*100:.1f}\%")
                 
                 st.markdown("**Paso 2: Valor de la Empresa (Enterprise Value)**")
-                st.latex(rf"EV = \frac{{\${fcf:,.0f} \times (1 + {g:.1\%})}}{{{wacc:.1\%} - {g:.1\%}}} = \${ev:,.0f}")
+                st.latex(rf"EV = \frac{{\${fcf:,.0f} \times (1 + {g*100:.1f}\%)}}{{{wacc*100:.1f}\% - {g*100:.1f}\%}} = \${ev:,.0f}")
                 
                 st.markdown("**Paso 3: Valor para el Accionista (Equity Value)**")
                 st.latex(rf"Equity = \${ev:,.0f} + \${total_cash:,.0f} - \${deuda_total:,.0f} = \${equity_value:,.0f}")
