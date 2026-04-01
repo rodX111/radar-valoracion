@@ -10,6 +10,8 @@ on:
 # 2. ¿Qué permisos tiene? (Necesita permiso de escritura para guardar el CSV)
 permissions:
   contents: write
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 # 3. Los pasos del trabajo
 jobs:
