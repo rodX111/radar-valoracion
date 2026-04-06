@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 from sqlalchemy import create_engine, text, exc
 import hashlib
+import requests  # <--- AGREGA ESTA LÍNEA
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Radar de Valor", page_icon="🎯", layout="wide")
@@ -100,18 +101,17 @@ if st.session_state['usuario_id'] is None:
 else:
     st.sidebar.success(f"Hola, **{st.session_state['username']}** 👋")
     
-    # --- NUEVA SECCIÓN: CONFIGURACIÓN DE ALERTAS ---
+    # --- SECCIÓN: CONFIGURACIÓN DE ALERTAS ---
     with st.sidebar.expander("⚙️ Configurar Alertas (Telegram)"):
         st.write("Recibe un mensaje cuando tus acciones alcancen su Valor Justo.")
         
-        # Consultamos si el usuario ya tiene un Chat ID guardado para mostrarlo
+        # Consultamos si el usuario ya tiene un Chat ID guardado
         with motor.connect() as conn:
             chat_actual = conn.execute(
                 text("SELECT telegram_chat_id FROM usuarios WHERE id = :uid"),
                 {"uid": st.session_state['usuario_id']}
             ).fetchone()[0]
         
-        # Mostramos el campo. Si ya tiene uno, lo ponemos por defecto.
         nuevo_chat_id = st.text_input(
             "Tu Chat ID (@getmyid_bot):", 
             value=chat_actual if chat_actual else "", 
@@ -121,21 +121,47 @@ else:
         if st.button("Guardar Preferencia", use_container_width=True):
             with motor.connect() as conn:
                 if nuevo_chat_id.strip() == "":
-                    # Si lo deja en blanco, apagamos las notificaciones (ponemos NULL)
                     conn.execute(
                         text("UPDATE usuarios SET telegram_chat_id = NULL WHERE id = :uid"),
                         {"uid": st.session_state['usuario_id']}
                     )
                     conn.commit()
                     st.success("🔕 Alertas desactivadas.")
+                    st.rerun() # Actualiza la vista al instante
                 else:
-                    # Si pone un número, lo actualizamos
                     conn.execute(
                         text("UPDATE usuarios SET telegram_chat_id = :chat WHERE id = :uid"),
                         {"chat": nuevo_chat_id.strip(), "uid": st.session_state['usuario_id']}
                     )
                     conn.commit()
                     st.success("🔔 ¡Alertas activadas!")
+                    st.rerun() # Actualiza la vista al instante
+
+        # --- BOTÓN DE PRUEBA DE TELEGRAM ---
+        # Solo mostramos el botón si ya tiene un Chat ID guardado en la base de datos
+        if chat_actual:
+            st.markdown("---")
+            if st.button("📲 Enviar mensaje de prueba", use_container_width=True):
+                # Usamos el token de tu bot
+                TELEGRAM_TOKEN = "8779515106:AAFFzIFjYGug6BY6TDdTBAQZQ0vljuMrRnU"
+                url_telegram = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+                
+                mensaje_prueba = f"🤖 ¡Hola *{st.session_state['username']}*!\n\nEsta es una prueba de conexión. Tu *Radar de Valor* está configurado correctamente para enviarte alertas aquí. 🎯📈"
+                
+                payload = {
+                    "chat_id": chat_actual,
+                    "text": mensaje_prueba,
+                    "parse_mode": "Markdown"
+                }
+                
+                try:
+                    respuesta = requests.post(url_telegram, data=payload)
+                    if respuesta.status_code == 200:
+                        st.success("¡Mensaje enviado! Revisa tu Telegram.")
+                    else:
+                        st.error("Error al enviar. Asegúrate de haberle dado 'Iniciar' al bot en Telegram.")
+                except Exception as e:
+                    st.error(f"Error de conexión: {e}")
     
     st.sidebar.markdown("---")
     
@@ -143,6 +169,7 @@ else:
         st.session_state['usuario_id'] = None
         st.session_state['username'] = None
         st.rerun()
+        
 
 st.sidebar.markdown("---")
 st.sidebar.header("🔍 Configuración del Radar")
