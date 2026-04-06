@@ -79,12 +79,19 @@ if st.session_state['usuario_id'] is None:
     with tab_registro:
         user_reg = st.text_input("Nuevo Usuario", key="reg_user")
         pass_reg = st.text_input("Nueva Contraseña", type="password", key="reg_pass")
+        
+        # NUEVO: Pedimos el Chat ID
+        st.markdown("📲 **Alertas por Telegram (Opcional)**")
+        st.caption("Para recibir alertas de venta, habla con @getmyid_bot en Telegram y pega aquí tu Chat ID (ej. 123456789).")
+        chat_id_reg = st.text_input("Tu Chat ID", key="reg_chat_id")
+        
         if st.button("Crear Cuenta"):
             try:
                 with motor.connect() as conn:
+                    # NUEVO: Insertamos el telegram_chat_id
                     conn.execute(
-                        text("INSERT INTO usuarios (username, password) VALUES (:u, :p)"), 
-                        {"u": user_reg, "p": hash_password(pass_reg)}
+                        text("INSERT INTO usuarios (username, password, telegram_chat_id) VALUES (:u, :p, :chat)"), 
+                        {"u": user_reg, "p": hash_password(pass_reg), "chat": chat_id_reg if chat_id_reg else None}
                     )
                     conn.commit()
                     st.success("¡Cuenta creada! Ya puedes ingresar.")
