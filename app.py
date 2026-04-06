@@ -17,6 +17,10 @@ def init_db():
     with motor.connect() as conn:
         conn.execute(text('''CREATE TABLE IF NOT EXISTS usuarios 
                      (id SERIAL PRIMARY KEY, username TEXT UNIQUE, password TEXT)'''))
+        
+        # Agregamos la nueva columna para Telegram (si no existe)
+        conn.execute(text('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telegram_chat_id TEXT'))
+        
         conn.execute(text('''CREATE TABLE IF NOT EXISTS portafolios 
                      (id SERIAL PRIMARY KEY, usuario_id INTEGER, ticker TEXT, 
                      FOREIGN KEY(usuario_id) REFERENCES usuarios(id))'''))
