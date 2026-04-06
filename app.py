@@ -99,7 +99,47 @@ if st.session_state['usuario_id'] is None:
                 st.error("Ese nombre de usuario ya existe.")
 else:
     st.sidebar.success(f"Hola, **{st.session_state['username']}** 👋")
-    if st.sidebar.button("Cerrar Sesión"):
+    
+    # --- NUEVA SECCIÓN: CONFIGURACIÓN DE ALERTAS ---
+    with st.sidebar.expander("⚙️ Configurar Alertas (Telegram)"):
+        st.write("Recibe un mensaje cuando tus acciones alcancen su Valor Justo.")
+        
+        # Consultamos si el usuario ya tiene un Chat ID guardado para mostrarlo
+        with motor.connect() as conn:
+            chat_actual = conn.execute(
+                text("SELECT telegram_chat_id FROM usuarios WHERE id = :uid"),
+                {"uid": st.session_state['usuario_id']}
+            ).fetchone()[0]
+        
+        # Mostramos el campo. Si ya tiene uno, lo ponemos por defecto.
+        nuevo_chat_id = st.text_input(
+            "Tu Chat ID (@getmyid_bot):", 
+            value=chat_actual if chat_actual else "", 
+            key="update_chat_id"
+        )
+        
+        if st.button("Guardar Preferencia", use_container_width=True):
+            with motor.connect() as conn:
+                if nuevo_chat_id.strip() == "":
+                    # Si lo deja en blanco, apagamos las notificaciones (ponemos NULL)
+                    conn.execute(
+                        text("UPDATE usuarios SET telegram_chat_id = NULL WHERE id = :uid"),
+                        {"uid": st.session_state['usuario_id']}
+                    )
+                    conn.commit()
+                    st.success("🔕 Alertas desactivadas.")
+                else:
+                    # Si pone un número, lo actualizamos
+                    conn.execute(
+                        text("UPDATE usuarios SET telegram_chat_id = :chat WHERE id = :uid"),
+                        {"chat": nuevo_chat_id.strip(), "uid": st.session_state['usuario_id']}
+                    )
+                    conn.commit()
+                    st.success("🔔 ¡Alertas activadas!")
+    
+    st.sidebar.markdown("---")
+    
+    if st.sidebar.button("Cerrar Sesión", use_container_width=True):
         st.session_state['usuario_id'] = None
         st.session_state['username'] = None
         st.rerun()
