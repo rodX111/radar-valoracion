@@ -242,3 +242,72 @@ if not df_final.empty:
     print(f"✅ Base de datos en la nube actualizada: {len(df_final)} empresas guardadas.")
 else:
     print("⚠️ No se encontraron oportunidades.")
+
+# ==========================================
+# 🚨 MÓDULO DE ALERTAS MULTIUSUARIO POR TELEGRAM 🚨
+# ==========================================
+import requests
+from sqlalchemy import text
+
+TELEGRAM_TOKEN = "8779515106:AAFFzIFjYGug6BY6TDdTBAQZQ0vljuMrRnU"
+
+print("\n📡 Iniciando revisión de portafolios para alertas de Telegram...")
+try:
+    with motor.connect() as conn:
+        # 1. Obtener todos los usuarios que SÍ registraron un Chat ID
+        query_usuarios = text("SELECT id, username, telegram_chat_id FROM usuarios WHERE telegram_chat_id IS NOT NULL AND telegram_chat_id != ''")
+        usuarios_activos = conn.execute(query_usuarios).fetchall()
+        
+        if not usuarios_activos:
+            print("ℹ️ Ningún usuario tiene configurado Telegram aún.")
+        
+        # 2. El Ciclo Maestro: Revisar usuario por usuario
+        for usuario in usuarios_activos:
+            uid = usuario[0]
+            nombre = usuario[1]
+            chat_id = usuario[2]
+            
+            # Obtener el portafolio de ESTE usuario en específico
+            query_portafolio = text("SELECT ticker FROM portafolios WHERE usuario_id = :uid")
+            result = conn.execute(query_portafolio, {"uid": uid}).fetchall()
+            tickers_usuario = [row[0] for row in result]
+            
+            if not tickers_usuario:
+                continue # Si no tiene acciones guardadas, saltamos al siguiente usuario
+                
+            # 3. Cruzar sus tickers con los datos frescos
+            df_vigiladas = df_final[df_final['Ticker'].isin(tickers_usuario)]
+            
+            # Condición: Upside menor o igual al 5% (Ya alcanzó el Valor Justo)
+            df_alertas = df_vigiladas[df_vigiladas['Upside Potencial'] <= 0.05]
+            
+            if not df_alertas.empty:
+                # 4. Construir el mensaje personalizado
+                mensaje = f"🚨 *ALERTAS DEL RADAR DE VALOR* 🚨\n"
+                mensaje += f"Hola {nombre}, las siguientes acciones de tu portafolio están alcanzando su Valor Justo. ¡Es hora de auditar!\n\n"
+                
+                for index, row in df_alertas.iterrows():
+                    mensaje += f"📈 *{row['Ticker']} - {row['Empresa']}*\n"
+                    mensaje += f"💵 Precio Actual: ${row['Precio']:.2f}\n"
+                    mensaje += f"🎯 Valor Justo: ${row['Valor Justo']:.2f}\n"
+                    mensaje += f"📊 Upside Restante: {row['Upside Potencial']*100:.1f}%\n"
+                    mensaje += "-----------------------------------\n"
+                
+                # 5. Disparar el mensaje a su celular
+                url_telegram = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+                payload = {
+                    "chat_id": chat_id,
+                    "text": mensaje,
+                    "parse_mode": "Markdown"
+                }
+                respuesta = requests.post(url_telegram, data=payload)
+                
+                if respuesta.status_code == 200:
+                    print(f"✅ Alerta enviada con éxito a {nombre} ({chat_id})")
+                else:
+                    print(f"❌ Error al enviar a {nombre}: {respuesta.text}")
+                    
+    print("🏁 Proceso de alertas finalizado.")
+
+except Exception as e:
+    print(f"❌ Error crítico en el módulo de alertas: {e}")
