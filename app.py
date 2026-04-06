@@ -228,6 +228,46 @@ with tab1:
                 r4.metric("Cobertura Int.", f"{dato.get('CI', 0):.1f}x", help="Ideal > 3.0")
                 r5.metric("Margen Neto", f"{dato.get('MN', 0):.1%}", help="Ideal > 10%")
 
+                # --- DESGLOSE MATEMÁTICO DE SALUD FINANCIERA ---
+                st.markdown("---")
+                st.write("##### 🧮 Desglose Matemático")
+                
+                # Extracción de variables crudas
+                act_circ = dato.get('Activo Circulante', 0)
+                inv = dato.get('Inventario', 0)
+                pas_circ = dato.get('Pasivo Circulante', 0)
+                pas_tot = dato.get('Pasivo Total', 0)
+                act_tot = dato.get('Activo Total', 0)
+                ebit = dato.get('EBIT', 0)
+                gastos_int = dato.get('Gastos por Intereses', 0)
+                util_neta = dato.get('Utilidad Neta', 0)
+                ventas = dato.get('Ventas Totales', 0)
+
+                # Dividimos las 5 fórmulas en dos columnas para aprovechar el espacio
+                c_math1, c_math2 = st.columns(2)
+                
+                with c_math1:
+                    st.markdown("**1. Prueba Ácida (Liquidez Inmediata)**")
+                    st.latex(r"Prueba\ \acute{A}cida = \frac{Activo\ Circulante - Inventario}{Pasivo\ Circulante}")
+                    st.latex(rf"PA = \frac{{\${act_circ:,.0f} - \${inv:,.0f}}}{{\${pas_circ:,.0f}}} = {dato.get('PA', 0):.2f}")
+                    
+                    st.markdown("**2. Razón Circulante (Liquidez a Corto Plazo)**")
+                    st.latex(r"Raz\acute{o}n\ Circulante = \frac{Activo\ Circulante}{Pasivo\ Circulante}")
+                    st.latex(rf"RC = \frac{{\${act_circ:,.0f}}}{{\${pas_circ:,.0f}}} = {dato.get('RC', 0):.2f}")
+                    
+                    st.markdown("**3. Endeudamiento (Solvencia)**")
+                    st.latex(r"Endeudamiento = \frac{Pasivo\ Total}{Activo\ Total}")
+                    st.latex(rf"END = \frac{{\${pas_tot:,.0f}}}{{\${act_tot:,.0f}}} = {dato.get('END', 0)*100:.1f}\%")
+
+                with c_math2:
+                    st.markdown("**4. Cobertura de Intereses (Capacidad de Pago)**")
+                    st.latex(r"Cobertura\ Int. = \frac{EBIT}{Gastos\ por\ Intereses}")
+                    st.latex(rf"CI = \frac{{\${ebit:,.0f}}}{{\${gastos_int:,.0f}}} = {dato.get('CI', 0):.1f}x")
+                    
+                    st.markdown("**5. Margen Neto (Rentabilidad)**")
+                    st.latex(r"Margen\ Neto = \frac{Utilidad\ Neta}{Ventas\ Totales}")
+                    st.latex(rf"MN = \frac{{\${util_neta:,.0f}}}{{\${ventas:,.0f}}} = {dato.get('MN', 0)*100:.1f}\%")
+
             # --- SECCIÓN 3: VEREDICTO FINAL ---
             st.divider()
             st.subheader("🎯 Veredicto Final")
