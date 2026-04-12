@@ -227,7 +227,7 @@ df_final = pd.DataFrame(resultados)
 # Filtros de Calidad y Guardado
 if not df_final.empty:
     df_final = df_final[df_final['WACC'] >= 0.04] 
-    df_final = df_final[df_final['Upside Potencial'] <= 3.0] 
+    df_final = df_final[df_final['Upside Potencial'] <= 10.0]
     df_final['Ultima Actualizacion'] = date.today().strftime('%d/%m/%Y')
         
     print("💾 Conectando a Supabase (PostgreSQL)...")
