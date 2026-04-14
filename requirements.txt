@@ -1,0 +1,21 @@
+# --- Motores para FastAPI y Render ---
+fastapi
+uvicorn
+gunicorn
+python-dotenv
+
+# --- Visualización y Portal Anterior ---
+streamlit
+plotly
+
+# --- Procesamiento de Datos (Usados en update_data.py) ---
+pandas
+yfinance
+requests
+lxml
+openpyxl
+numpy
+
+# --- Base de Datos (Supabase) ---
+SQLAlchemy>=2.0.36
+pg8000
