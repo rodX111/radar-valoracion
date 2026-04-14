@@ -9,9 +9,18 @@ from datetime import datetime, timedelta
 
 app = FastAPI()
 
+# 1. Define primero la lista de sitios permitidos
+origins = [
+    "https://radarvaloracion.com",
+    "https://www.radarvaloracion.com",
+    "http://localhost:5500",  # Para cuando pruebes en tu compu
+    "http://127.0.0.1:5500",
+]
+
+# 2. Pasa esa lista al middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,  # <-- Aquí usamos la lista que creamos arriba
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
