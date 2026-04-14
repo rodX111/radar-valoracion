@@ -3,6 +3,7 @@ fastapi
 uvicorn
 gunicorn
 python-dotenv
+PyJWT
 
 # --- Visualización y Portal Anterior ---
 streamlit
