@@ -4,6 +4,7 @@ uvicorn
 gunicorn
 python-dotenv
 PyJWT
+psycopg2-binary
 
 # --- Visualización y Portal Anterior ---
 streamlit
