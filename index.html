@@ -221,7 +221,7 @@
 
         async function cargarDatosPublicos() {
 			try {
-				const respuesta = await fetch("http://127.0.0.1:8000/api/acciones");
+				const respuesta = await fetch("https://radar-valoracion.onrender.com/api/acciones");
 				const datos = await respuesta.json();
 				if (datos.estado === "éxito") {
 					datosGlobales = datos.acciones;
@@ -401,7 +401,7 @@
 			}
 
 			try {
-				const respuesta = await fetch("http://127.0.0.1:8000/api/agregar-portafolio", {
+				const respuesta = await fetch("https://radar-valoracion.onrender.com/api/agregar-portafolio", {
 					method: "POST",
 					headers: { 
 						"Content-Type": "application/json", 
@@ -442,7 +442,7 @@
 
 			try {
 				// Nota: Asegúrate de que en FastAPI tu ruta sea /api/eliminar-portafolio/{ticker}
-				const respuesta = await fetch(`http://127.0.0.1:8000/api/eliminar-portafolio/${ticker}`, {
+				const respuesta = await fetch(`https://radar-valoracion.onrender.com/api/eliminar-portafolio/${ticker}`, {
 					method: "DELETE",
 					headers: { "Authorization": "Bearer " + token }
 				});
@@ -470,7 +470,7 @@
 			const endpoint = modoActual === 'login' ? "/api/login" : "/api/registro";
 
 			try {
-				const respuesta = await fetch(`http://127.0.0.1:8000${endpoint}`, {
+				const respuesta = await fetch(`https://radar-valoracion.onrender.com${endpoint}`, {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ username: user, password: pass })
@@ -574,7 +574,7 @@
 			tbody.innerHTML = "<tr><td colspan='7' style='text-align:center;'>Cargando tu selección...</td></tr>";
 
 			try {
-				const respuesta = await fetch("http://127.0.0.1:8000/api/mi-portafolio", {
+				const respuesta = await fetch("https://radar-valoracion.onrender.com/api/mi-portafolio", {
 					headers: { "Authorization": "Bearer " + token }
 				});
 
