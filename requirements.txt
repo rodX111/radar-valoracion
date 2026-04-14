@@ -1,9 +1,19 @@
-streamlit
+# --- Framework de Backend ---
+fastapi
+uvicorn
+gunicorn
+
+# --- Procesamiento de Datos ---
 pandas
 yfinance
 requests
 lxml
 openpyxl
-plotly
+numpy
+
+# --- Base de Datos (Supabase/PostgreSQL) ---
 SQLAlchemy>=2.0.36
 pg8000
+
+# --- Utilidades ---
+python-dotenv
