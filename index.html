@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Radar de Valor - Oportunidades</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+
+    <style>
+        :root { --primary: #007bff; --bg: #f8f9fa; --card: #ffffff; --text: #333; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 0; }
+        
+        /* Barra de Navegación */
+        .navbar { background-color: #343a40; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; color: white; }
+        .navbar h1 { margin: 0; font-size: 24px; }
+        .btn-login { background-color: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn-login:hover { background-color: #0056b3; }
+
+        /* Contenedor de Pestañas */
+        .tabs-container { max-width: 1200px; margin: 20px auto 0 auto; padding: 0 20px; border-bottom: 1px solid #dee2e6; }
+        .tab-btn { padding: 10px 20px; cursor: pointer; border: none; background: none; font-weight: bold; font-size: 16px; color: #666; transition: 0.3s; }
+        .tab-btn.active { border-bottom: 3px solid #007bff; color: #007bff; }
+
+        /* Layout General */
+        .container { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
+        .ad-space { background-color: #e9ecef; border: 2px dashed #adb5bd; padding: 20px; text-align: center; color: #6c757d; font-weight: bold; border-radius: 8px; margin-bottom: 30px; }
+
+		/* Estilos de la Tabla */
+        .table-container { 
+            background: var(--card); border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+            max-height: 500px; overflow-y: auto; margin-bottom: 40px; border: 1px solid #dee2e6;
+        }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 12px 15px; border-bottom: 1px solid #dee2e6; }
+        th { background-color: #f1f3f5; font-weight: 600; position: sticky; top: 0; z-index: 10; cursor: pointer; user-select: none; }
+        th:hover { background-color: #e2e6ea; }
+        tr:hover { background-color: #f8f9fa; }
+        .upside { color: #28a745; font-weight: bold; }
+
+        /* Auditoría */
+        .auditoria-card { background: var(--card); padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 40px; }
+        .selector-container { margin-bottom: 20px; }
+        select { width: 100%; max-width: 400px; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; }
+        
+        /* Desplegables y Matemáticas */
+        details { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 5px; margin-bottom: 10px; padding: 10px 15px; }
+        summary { font-weight: bold; cursor: pointer; padding: 5px 0; outline: none; }
+        .math-block { margin: 15px 0; padding: 10px; background: white; border-radius: 5px; border-left: 4px solid var(--primary); }
+        .math-label { font-weight: bold; margin-bottom: 5px; font-size: 14px; color: #555; }
+        
+        .health-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px; }
+
+        .veredicto { display: flex; justify-content: space-between; background: #e8f4fd; padding: 20px; border-radius: 8px; margin-top: 20px; border: 1px solid #b8daff; }
+        .metric { text-align: center; }
+        .metric-title { font-size: 14px; color: #555; text-transform: uppercase; letter-spacing: 1px; }
+        .metric-value { font-size: 24px; font-weight: bold; color: #004085; }
+        .btn-seguir { background-color: #28a745; color: white; border: none; padding: 15px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 20px; font-size: 16px; }
+
+        @media (max-width: 768px) {
+            .health-grid { grid-template-columns: 1fr; }
+            .veredicto { flex-direction: column; gap: 15px; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <h1>🎯 Radar de Valor</h1>
+        <button class="btn-login" onclick="abrirModal()">Iniciar Sesión / Registro</button>
+    </nav>
+
+    <div class="tabs-container">
+        <button class="tab-btn active" id="btn-tab-mercado" onclick="cambiarPestana('mercado')">🔍 Oportunidades</button>
+        <button class="tab-btn" id="btn-tab-portafolio" onclick="cambiarPestana('portafolio')">📊 Mi Portafolio</button>
+    </div>
+
+    <div class="container">
+        
+        <div id="seccion-mercado">
+            <div class="ad-space">[ Espacio Publicitario ]</div>
+            
+            <h2>🏆 Oportunidades Detectadas</h2>
+            <p>Encuentra empresas sólidas que cotizan por debajo de su valor real.</p>
+            
+            <div style="background: #eef6ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #d0e3ff; display: inline-block;">
+                <label style="cursor: pointer; font-weight: bold; color: #0056b3; display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="filtro-impecable" onchange="aplicarFiltros()" style="width: 18px; height: 18px;"> 
+                    ✨ Estrategia de Portafolio: Mostrar solo Salud Impecable
+                </label>
+            </div>
+            
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="ordenarTabla('Ticker', 'texto')">Ticker ↕️</th>
+                            <th onclick="ordenarTabla('Empresa', 'texto')">Empresa ↕️</th>
+                            <th onclick="ordenarTabla('Sector', 'texto')">Sector ↕️</th>
+                            <th onclick="ordenarTabla('Precio', 'numero')">Precio ↕️</th>
+                            <th onclick="ordenarTabla('Valor Justo', 'numero')">Valor Justo ↕️</th>
+                            <th onclick="ordenarTabla('Upside Potencial', 'numero')">Upside ↕️</th>
+                            <th onclick="ordenarTabla('Salud Financiera', 'texto')">Salud Fin. ↕️</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cuerpo-tabla">
+                        <tr><td colspan="7" style="text-align: center;">Cargando oportunidades...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="auditoria-card">
+                <h2>💎 Caja de Cristal: Auditoría</h2>
+                <div class="selector-container">
+                    <label for="empresa-select"><strong>Selecciona empresa a auditar:</strong></label><br><br>
+                    <select id="empresa-select" onchange="renderizarAuditoria()">
+                        <option value="">-- Elige una empresa --</option>
+                    </select>
+                </div>
+
+                <div id="panel-auditoria" style="display: none;">
+                    <h3 id="auditoria-titulo" style="border-bottom: 2px solid #007bff; padding-bottom: 10px;">Auditoría</h3>
+                    <details>
+                        <summary>🧮 Ver desglose matemático exacto</summary>
+                        <div class="math-block">
+                            <div class="math-label">Paso 1: WACC</div>
+                            <div id="formula-wacc-teorica"></div>
+                            <div id="formula-wacc-real"></div>
+                        </div>
+                        <div class="math-block">
+                            <div class="math-label">Paso 2: Enterprise Value</div>
+                            <div id="formula-ev-teorica"></div>
+                            <div id="formula-ev-real"></div>
+                        </div>
+                        <div class="math-block">
+                            <div class="math-label">Paso 3: Equity Value</div>
+                            <div id="formula-eq-teorica"></div>
+                            <div id="formula-eq-real"></div>
+                        </div>
+                        <div class="math-block">
+                            <div class="math-label">Paso 4: Valor Justo</div>
+                            <div id="formula-vj-teorica"></div>
+                            <div id="formula-vj-real"></div>
+                        </div>
+                    </details>
+                    <details>
+                        <summary>🛡️ Salud Financiera</summary>
+                        <div class="health-grid">
+                            <div>
+                                <div id="formula-pa-real" class="math-block"></div>
+                                <div id="formula-rc-real" class="math-block"></div>
+                                <div id="formula-end-real" class="math-block"></div>
+                            </div>
+                            <div>
+                                <div id="formula-ci-real" class="math-block"></div>
+                                <div id="formula-mn-real" class="math-block"></div>
+                            </div>
+                        </div>
+                    </details>
+                    <div class="veredicto">
+                        <div class="metric"><div class="metric-title">Precio</div><div class="metric-value" id="veredicto-precio"></div></div>
+                        <div class="metric"><div class="metric-title">Valor Justo</div><div class="metric-value" id="veredicto-valor"></div></div>
+                        <div class="metric"><div class="metric-title">Upside</div><div class="metric-value upside" id="veredicto-upside"></div></div>
+                    </div>
+                    <button class="btn-seguir" onclick="agregarAlPortafolio()">🔔 Seguir esta acción</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="seccion-portafolio" style="display: none;">
+            <h2>📊 Mi Portafolio de Seguimiento</h2>
+            <p>Acciones en seguimiento (Máximo 5 en versión gratuita).</p>
+            
+            <div id="mensaje-login-portafolio" style="display:none; background: #fff3cd; padding: 20px; border-radius: 8px; border: 1px solid #ffeeba; text-align: center;">
+                <p>🔒 Debes iniciar sesión para ver tu portafolio.</p>
+                <button class="btn-login" onclick="abrirModal()">Ingresar ahora</button>
+            </div>
+
+            <div class="table-container" id="tabla-portafolio-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ticker</th>
+                            <th>Empresa</th>
+                            <th>Precio</th>
+                            <th>Valor Justo</th>
+                            <th>Upside</th>
+                            <th>Salud Fin.</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cuerpo-tabla-portafolio"></tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="modal-login" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000; justify-content:center; align-items:center;">
+		<div style="background:white; padding:40px; border-radius:15px; width:100%; max-width:400px; position:relative; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+			<span onclick="cerrarModal()" style="position:absolute; top:15px; right:20px; cursor:pointer; font-size:24px; color:#999;">&times;</span>
+			<div style="display:flex; margin-bottom:20px; border-bottom:1px solid #ddd;">
+				<div id="tab-login" onclick="cambiarTab('login')" style="flex:1; text-align:center; padding:10px; cursor:pointer; font-weight:bold; border-bottom:3px solid #007bff;">Entrar</div>
+				<div id="tab-registro" onclick="cambiarTab('registro')" style="flex:1; text-align:center; padding:10px; cursor:pointer; color:#666;">Registrarse</div>
+			</div>
+			<h2 id="modal-titulo" style="text-align:center;">Bienvenido</h2>
+			<input type="text" id="login-user" placeholder="Usuario" style="width:100%; padding:12px; margin:10px 0; border:1px solid #ddd; border-radius:5px;">
+			<input type="password" id="login-pass" placeholder="Contraseña" style="width:100%; padding:12px; margin:10px 0; border:1px solid #ddd; border-radius:5px;">
+			<button id="btn-modal-accion" onclick="ejecutarAccion()" style="width:100%; background:#007bff; color:white; border:none; padding:15px; border-radius:5px; font-weight:bold; cursor:pointer;">Ingresar</button>
+			<p id="login-error" style="color:red; font-size:13px; text-align:center; margin-top:15px;"></p>
+		</div>
+	</div>
+
+    <script>
+        // ... (Tu código JavaScript actual se mantiene igual)
+        // Solo asegúrate de que modoActual y datosGlobales estén declarados una sola vez.
+        let datosGlobales = [];
+        let ordenActual = { columna: null, ascendente: true };
+		let datosFiltradosActuales = [];
+		let modoActual = 'login';
+
+        async function cargarDatosPublicos() {
+			try {
+				const respuesta = await fetch("http://127.0.0.1:8000/api/acciones");
+				const datos = await respuesta.json();
+				if (datos.estado === "éxito") {
+					datosGlobales = datos.acciones;
+					llenarSelectorEmpresas();
+					datosFiltradosActuales = [...datosGlobales]; 
+					renderizarTabla(datosFiltradosActuales);
+					if (datosGlobales.length > 0) {
+						document.getElementById('empresa-select').value = datosGlobales[0]['Ticker'];
+						renderizarAuditoria();
+					}
+				}
+			} catch (error) { console.error("Error:", error); }
+		}
+		
+		function aplicarFiltros() {
+			const checkImpecable = document.getElementById('filtro-impecable').checked;
+			datosFiltradosActuales = checkImpecable ? datosGlobales.filter(acc => acc['Salud Financiera'] === '🟢 Impecable') : [...datosGlobales];
+			renderizarTabla(datosFiltradosActuales);
+		}		
+
+        function llenarSelectorEmpresas() {
+            const select = document.getElementById('empresa-select');
+            select.innerHTML = '<option value="">-- Elige una empresa --</option>';
+            let datosMenu = [...datosGlobales].sort((a, b) => a.Ticker.localeCompare(b.Ticker));
+            datosMenu.forEach(accion => {
+                let opcion = document.createElement("option");
+                opcion.value = accion['Ticker'];
+                opcion.text = `${accion['Ticker']} - ${accion['Empresa']}`;
+                select.appendChild(opcion);
+            });
+        }
+
+        function renderizarTabla(datos) {
+            const tbody = document.getElementById('cuerpo-tabla');
+            tbody.innerHTML = ""; 
+            datos.forEach((accion) => {
+                tbody.innerHTML += `<tr>
+                    <td><strong>${accion['Ticker']}</strong></td>
+                    <td>${accion['Empresa']}</td>
+                    <td>${accion['Sector'] || "N/A"}</td>
+                    <td>$${parseFloat(accion['Precio']).toFixed(2)}</td>
+                    <td>$${parseFloat(accion['Valor Justo']).toFixed(2)}</td>
+                    <td class="upside">${(parseFloat(accion['Upside Potencial']) * 100).toFixed(1)}%</td>
+                    <td>${accion['Salud Financiera'] || "Pendiente"}</td>
+                </tr>`;
+            });
+        }
+
+		function ordenarTabla(columna, tipo) {
+			if (ordenActual.columna === columna) ordenActual.ascendente = !ordenActual.ascendente;
+			else { ordenActual.columna = columna; ordenActual.ascendente = true; }
+			const direccion = ordenActual.ascendente ? 1 : -1;
+			datosFiltradosActuales.sort((a, b) => {
+				let valA = a[columna] || (tipo === 'numero' ? 0 : '');
+				let valB = b[columna] || (tipo === 'numero' ? 0 : '');
+				return tipo === 'numero' ? (parseFloat(valA) - parseFloat(valB)) * direccion : String(valA).localeCompare(String(valB)) * direccion;
+			});
+			renderizarTabla(datosFiltradosActuales);
+		}
+
+		function renderizarAuditoria() {
+			const select = document.getElementById('empresa-select');
+			const panel = document.getElementById('panel-auditoria');
+			
+			if (select.value === "") {
+				panel.style.display = "none";
+				return;
+			}
+
+			const tickerSeleccionado = select.value;
+			const empresa = datosGlobales.find(acc => acc['Ticker'] === tickerSeleccionado);
+			
+			panel.style.display = "block";
+			document.getElementById('auditoria-titulo').innerText = "Auditoría de: " + empresa['Empresa'];
+
+			// --- 1. EXTRACCIÓN Y CÁLCULOS ---
+			const fmt = (num) => num.toLocaleString('en-US', {maximumFractionDigits:0});
+
+			let wacc = parseFloat(empresa['WACC']) || 0;
+			let ke = parseFloat(empresa['Ke']) || 0;
+			let kd = parseFloat(empresa['Kd Neto']) || 0;
+			let peso_e = parseFloat(empresa['Peso Equity']) || 0;
+			let peso_d = parseFloat(empresa['Peso Deuda']) || 0;
+			let fcf = parseFloat(empresa['FCF']) || 0;
+			let g = parseFloat(empresa['Crecimiento (g)']) || 0;
+			let total_cash = parseFloat(empresa['Total Cash']) || 0;
+			let deuda_total = parseFloat(empresa['Deuda Total']) || 0;
+			let valor_justo_bd = parseFloat(empresa['Valor Justo']) || 0;
+			
+			// Cálculos de Salud Financiera
+			let act_circ = parseFloat(empresa['Activo Circulante']) || 0;
+			let inv = parseFloat(empresa['Inventario']) || 0;
+			let pas_circ = parseFloat(empresa['Pasivo Circulante']) || 1; 
+			let pas_tot = parseFloat(empresa['Pasivo Total']) || 0;
+			let act_tot = parseFloat(empresa['Activo Total']) || 1;
+			let ebit = parseFloat(empresa['EBIT']) || 0;
+			let gastos_int = parseFloat(empresa['Gastos por Intereses']) || 1;
+			let util_neta = parseFloat(empresa['Utilidad Neta']) || 0;
+			let ventas = parseFloat(empresa['Ventas Totales']) || 1;
+
+			// Cálculos intermedios
+			let ev = (wacc - g) > 0 ? (fcf * (1 + g)) / (wacc - g) : 0;
+			let equity_value = ev + total_cash - deuda_total;
+			let acciones = valor_justo_bd > 0 ? equity_value / valor_justo_bd : 0;
+
+			let calc_pa = (act_circ - inv) / pas_circ;
+			let calc_rc = act_circ / pas_circ;
+			let calc_end = pas_tot / act_tot;
+			let calc_ci = ebit / gastos_int;
+			let calc_mn = util_neta / ventas;
+
+			// --- 2. RENDERIZADO KaTeX (PASOS 1-4) ---
+			
+			// Paso 1: WACC
+			const f_wacc_t = String.raw`WACC = (W_e \times K_e) + (W_d \times K_d \text{ Neto})`;
+			const f_wacc_r = String.raw`WACC = (${(peso_e*100).toFixed(1)}\%) \times (${(ke*100).toFixed(1)}\%) + (${(peso_d*100).toFixed(1)}\%) \times (${(kd*100).toFixed(1)}\%) = ${(wacc*100).toFixed(1)}\%`;
+			
+			// Paso 2: Enterprise Value
+			const f_ev_t = String.raw`EV = \frac{FCF \times (1 + g)}{WACC - g}`;
+			const f_ev_r = String.raw`EV = \frac{\$ ${fmt(fcf)} \times (1 + ${(g * 100).toFixed(1)}\%)}{${(wacc * 100).toFixed(1)}\% - ${(g * 100).toFixed(1)}\%} = \$ ${fmt(ev)}`;
+
+			// Paso 3: Equity Value
+			const f_eq_t = String.raw`Equity\ Value = EV + Total\ Cash - Deuda\ Total`;
+			const f_eq_r = String.raw`Equity = \$ ${fmt(ev)} + \$ ${fmt(total_cash)} - \$ ${fmt(deuda_total)} = \$ ${fmt(equity_value)}`;
+
+			// Paso 4: Valor Justo
+			const f_vj_t = String.raw`Valor\ Justo = \frac{Equity\ Value}{Acciones \text{ en Circulación}}`;
+			const f_vj_r = String.raw`Valor\ Justo = \frac{\$ ${fmt(equity_value)}}{${fmt(acciones)} \text{ acciones}} = \$ ${valor_justo_bd.toFixed(2)}`;
+
+			// Renderizado de valoración
+			katex.render(f_wacc_t, document.getElementById('formula-wacc-teorica'), {displayMode: true});
+			katex.render(f_wacc_r, document.getElementById('formula-wacc-real'), {displayMode: true});
+			katex.render(f_ev_t, document.getElementById('formula-ev-teorica'), {displayMode: true});
+			katex.render(f_ev_r, document.getElementById('formula-ev-real'), {displayMode: true});
+			katex.render(f_eq_t, document.getElementById('formula-eq-teorica'), {displayMode: true});
+			katex.render(f_eq_r, document.getElementById('formula-eq-real'), {displayMode: true});
+			katex.render(f_vj_t, document.getElementById('formula-vj-teorica'), {displayMode: true});
+			katex.render(f_vj_r, document.getElementById('formula-vj-real'), {displayMode: true});
+
+			// --- 3. RENDERIZADO KaTeX (SALUD FINANCIERA) ---
+			
+			const f_pa_r = String.raw`PA = \frac{\$ ${fmt(act_circ)} - \$ ${fmt(inv)}}{\$ ${fmt(pas_circ)}} = ${calc_pa.toFixed(2)}`;
+			const f_rc_r = String.raw`RC = \frac{\$ ${fmt(act_circ)}}{\$ ${fmt(pas_circ)}} = ${calc_rc.toFixed(2)}`;
+			const f_end_r = String.raw`END = \frac{\$ ${fmt(pas_tot)}}{\$ ${fmt(act_tot)}} = ${(calc_end * 100).toFixed(1)}\%`;
+			const f_ci_r = String.raw`CI = \frac{\$ ${fmt(ebit)}}{\$ ${fmt(gastos_int)}} = ${calc_ci.toFixed(1)}x`;
+			const f_mn_r = String.raw`MN = \frac{\$ ${fmt(util_neta)}}{\$ ${fmt(ventas)}} = ${(calc_mn * 100).toFixed(1)}\%`;
+
+			katex.render(f_pa_r, document.getElementById('formula-pa-real'), {displayMode: true});
+			katex.render(f_rc_r, document.getElementById('formula-rc-real'), {displayMode: true});
+			katex.render(f_end_r, document.getElementById('formula-end-real'), {displayMode: true});
+			katex.render(f_ci_r, document.getElementById('formula-ci-real'), {displayMode: true});
+			katex.render(f_mn_r, document.getElementById('formula-mn-real'), {displayMode: true});
+
+			// --- 4. ACTUALIZAR VEREDICTO FINAL ---
+			document.getElementById('veredicto-precio').innerText = "$" + parseFloat(empresa['Precio']).toFixed(2);
+			document.getElementById('veredicto-valor').innerText = "$" + valor_justo_bd.toFixed(2);
+			document.getElementById('veredicto-upside').innerText = (parseFloat(empresa['Upside Potencial']) * 100).toFixed(1) + "%";
+		}
+
+		async function agregarAlPortafolio() {
+			const token = localStorage.getItem('token_radar');
+			
+			// 1. Verificación de sesión
+			if (!token) { 
+				alert("🔒 Para recibir notificaciones en tu celular debes Iniciar Sesión o Registrarte primero."); 
+				abrirModal();
+				return; 
+			}
+
+			// 2. Obtener el Ticker seleccionado
+			// Corregido: El valor del selector YA ES el ticker (ej: "AAPL")
+			const tickerSeleccionado = document.getElementById('empresa-select').value;
+
+			if (!tickerSeleccionado) {
+				alert("Selecciona una empresa primero.");
+				return;
+			}
+
+			try {
+				const respuesta = await fetch("http://127.0.0.1:8000/api/agregar-portafolio", {
+					method: "POST",
+					headers: { 
+						"Content-Type": "application/json", 
+						"Authorization": "Bearer " + token 
+					},
+					body: JSON.stringify({ ticker: tickerSeleccionado })
+				});
+
+				const datos = await respuesta.json();
+
+				if (respuesta.ok) {
+					alert("✅ " + datos.mensaje);
+					
+					// 🌟 OPCIONAL: Si el usuario está en la pestaña de portafolio, refrescamos la tabla
+					if (document.getElementById('seccion-portafolio').style.display === 'block') {
+						cargarPortafolioUsuario();
+					}
+				} else {
+					// Manejo de Paywall o errores de sesión
+					if (datos.estado === "paywall") {
+						alert("⭐ " + datos.mensaje);
+					} else {
+						alert("❌ " + (datos.detail || "Error al agregar"));
+					}
+				}
+
+			} catch (error) {
+				console.error("Error:", error);
+				alert("Error de conexión al guardar.");
+			}
+		}
+		async function eliminarDelPortafolio(ticker) {
+			const token = localStorage.getItem('token_radar');
+			
+			if (!confirm(`¿Estás seguro de que deseas dejar de seguir a ${ticker}?`)) {
+				return;
+			}
+
+			try {
+				// Nota: Asegúrate de que en FastAPI tu ruta sea /api/eliminar-portafolio/{ticker}
+				const respuesta = await fetch(`http://127.0.0.1:8000/api/eliminar-portafolio/${ticker}`, {
+					method: "DELETE",
+					headers: { "Authorization": "Bearer " + token }
+				});
+
+				if (respuesta.ok) {
+					// Refrescamos la tabla inmediatamente para que el cambio sea visual
+					cargarPortafolioUsuario(); 
+				} else {
+					const error = await respuesta.json();
+					alert("Error: " + error.detail);
+				}
+			} catch (e) {
+				alert("No se pudo conectar con el servidor para eliminar.");
+			}
+		}
+
+		function abrirModal() { document.getElementById('modal-login').style.display = 'flex'; }
+		function cerrarModal() { document.getElementById('modal-login').style.display = 'none'; }
+
+		async function ejecutarAccion() {
+			const user = document.getElementById('login-user').value;
+			const pass = document.getElementById('login-pass').value;
+			const errorDiv = document.getElementById('login-error');
+			
+			const endpoint = modoActual === 'login' ? "/api/login" : "/api/registro";
+
+			try {
+				const respuesta = await fetch(`http://127.0.0.1:8000${endpoint}`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ username: user, password: pass })
+				});
+
+				const datos = await respuesta.json();
+
+				if (respuesta.ok) {
+					if (modoActual === 'login') {
+						localStorage.setItem('token_radar', datos.token);
+						localStorage.setItem('usuario_nombre', user);
+						
+						cerrarModal();
+						verificarEstadoSesion();
+						
+						// 🌟 ESTA ES LA LÍNEA MÁGICA:
+						// Si el usuario estaba en la pestaña de portafolio, cargamos los datos ya mismo.
+						cargarPortafolioUsuario(); 
+						
+						alert("¡Hola de nuevo, " + user + "!");
+					} else {
+						alert("✅ Cuenta creada exitosamente.");
+						cambiarTab('login'); 
+					}
+				} else {
+					document.getElementById('login-error').innerText = "❌ " + (datos.detail || "Error");
+				}
+			} catch (e) {
+				console.error("Error en la conexión:", e);
+			}
+		}
+
+		function verificarEstadoSesion() {
+			const token = localStorage.getItem('token_radar'), user = localStorage.getItem('usuario_nombre');
+			const btn = document.querySelector('.btn-login');
+			if (token) {
+				btn.innerText = `Cerrar Sesión (${user})`; btn.style.background = "#dc3545"; btn.onclick = cerrarSesion;
+			} else {
+				btn.innerText = "Iniciar Sesión / Registro"; btn.style.background = "#007bff"; btn.onclick = abrirModal;
+			}
+		}
+
+		function cerrarSesion() {
+			// 1. Borramos las credenciales del navegador
+			localStorage.removeItem('token_radar');
+			localStorage.removeItem('usuario_nombre');
+
+			// 2. Actualizamos el botón de la barra de navegación (de "Cerrar" a "Iniciar")
+			verificarEstadoSesion();
+
+			// 3. Limpiamos el contenido de la tabla para que no quede data residual
+			const tbodyPortafolio = document.getElementById('cuerpo-tabla-portafolio');
+			if (tbodyPortafolio) {
+				tbodyPortafolio.innerHTML = "";
+			}
+
+			// 4. Forzamos la reevaluación de la pestaña de portafolio.
+			// Como ya no hay token, esta función ocultará la tabla y mostrará 
+			// el mensaje amarillo de "Debes iniciar sesión".
+			cargarPortafolioUsuario();
+
+			alert("Has cerrado sesión correctamente.");
+		}
+
+		function cambiarTab(modo) {
+			modoActual = modo;
+			const btn = document.getElementById('btn-modal-accion'), titulo = document.getElementById('modal-titulo');
+			if (modo === 'login') { titulo.innerText = "🎯 Acceso"; btn.innerText = "Ingresar"; }
+			else { titulo.innerText = "🚀 Registro"; btn.innerText = "Crear cuenta"; }
+		}
+
+		function cambiarPestana(nombre) {
+			const secMercado = document.getElementById('seccion-mercado'), secPortafolio = document.getElementById('seccion-portafolio');
+			const btnMercado = document.getElementById('btn-tab-mercado'), btnPortafolio = document.getElementById('btn-tab-portafolio');
+			if (nombre === 'mercado') {
+				secMercado.style.display = 'block'; secPortafolio.style.display = 'none';
+				btnMercado.classList.add('active'); btnPortafolio.classList.remove('active');
+			} else {
+				secMercado.style.display = 'none'; secPortafolio.style.display = 'block';
+				btnPortafolio.classList.add('active'); btnMercado.classList.remove('active');
+				cargarPortafolioUsuario();
+			}
+		}
+
+		async function cargarPortafolioUsuario() {
+			const token = localStorage.getItem('token_radar');
+			const mensajeLogin = document.getElementById('mensaje-login-portafolio');
+			const tablaContainer = document.getElementById('tabla-portafolio-container');
+			const tbody = document.getElementById('cuerpo-tabla-portafolio');
+
+			// 1. Si no hay token, mostramos el aviso y ocultamos la tabla
+			if (!token) {
+				mensajeLogin.style.display = 'block';
+				tablaContainer.style.display = 'none';
+				return;
+			}
+
+			// 2. Si hay token, preparamos la vista
+			mensajeLogin.style.display = 'none';
+			tablaContainer.style.display = 'block';
+			tbody.innerHTML = "<tr><td colspan='7' style='text-align:center;'>Cargando tu selección...</td></tr>";
+
+			try {
+				const respuesta = await fetch("http://127.0.0.1:8000/api/mi-portafolio", {
+					headers: { "Authorization": "Bearer " + token }
+				});
+
+				const datos = await respuesta.json();
+
+				if (datos.estado === "éxito") {
+					tbody.innerHTML = "";
+					
+					if (datos.acciones.length === 0) {
+						tbody.innerHTML = "<tr><td colspan='7' style='text-align:center;'>Aún no sigues ninguna acción.</td></tr>";
+						return;
+					}
+
+					// 3. Generamos las filas con el botón de eliminar funcional
+					datos.acciones.forEach(accion => {
+						tbody.innerHTML += `
+							<tr>
+								<td><strong>${accion.Ticker}</strong></td>
+								<td>${accion.Empresa}</td>
+								<td>$${parseFloat(accion.Precio).toFixed(2)}</td>
+								<td>$${parseFloat(accion['Valor Justo']).toFixed(2)}</td>
+								<td class="upside">${(parseFloat(accion['Upside Potencial']) * 100).toFixed(1)}%</td>
+								<td>${accion['Salud Financiera'] || 'N/A'}</td>
+								<td style="text-align:center;">
+									<button onclick="eliminarDelPortafolio('${accion.Ticker}')" 
+											style="background:none; border:none; cursor:pointer; font-size:18px;" 
+											title="Dejar de seguir">
+										🗑️
+									</button>
+								</td>
+							</tr>
+						`;
+					});
+				} else {
+					// Si el servidor dice que el token no vale, cerramos sesión
+					cerrarSesion();
+				}
+			} catch (e) {
+				console.error("Error al cargar portafolio:", e);
+				tbody.innerHTML = "<tr><td colspan='7' style='text-align:center; color:red;'>Error de conexión con el servidor.</td></tr>";
+			}
+		}
+
+		window.addEventListener('load', () => { cargarDatosPublicos(); verificarEstadoSesion(); });
+    </script>
+</body>
+</html>
