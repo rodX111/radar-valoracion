@@ -146,15 +146,41 @@
                     <details>
                         <summary>🛡️ Salud Financiera</summary>
                         <div class="health-grid">
-                            <div>
-                                <div id="formula-pa-real" class="math-block"></div>
-                                <div id="formula-rc-real" class="math-block"></div>
-                                <div id="formula-end-real" class="math-block"></div>
-                            </div>
-                            <div>
-                                <div id="formula-ci-real" class="math-block"></div>
-                                <div id="formula-mn-real" class="math-block"></div>
-                            </div>
+							<div class="ratio-container">
+							    <h4>Prueba Ácida (PA)</h4>
+							    <div id="formula-pa-teorica" class="formula-teorica"></div>
+							    <div id="formula-pa-real" class="formula-real"></div>
+							</div>
+							
+							<hr> <div class="ratio-container">
+							    <h4>Razón Circulante (RC)</h4>
+							    <div id="formula-rc-teorica" class="formula-teorica"></div>
+							    <div id="formula-rc-real" class="formula-real"></div>
+							</div>
+							
+							<hr>
+							
+							<div class="ratio-container">
+							    <h4>Endeudamiento (END)</h4>
+							    <div id="formula-end-teorica" class="formula-teorica"></div>
+							    <div id="formula-end-real" class="formula-real"></div>
+							</div>
+							
+							<hr>
+							
+							<div class="ratio-container">
+							    <h4>Cobertura de Intereses (CI)</h4>
+							    <div id="formula-ci-teorica" class="formula-teorica"></div>
+							    <div id="formula-ci-real" class="formula-real"></div>
+							</div>
+							
+							<hr>
+							
+							<div class="ratio-container">
+							    <h4>Margen Neto (MN)</h4>
+							    <div id="formula-mn-teorica" class="formula-teorica"></div>
+							    <div id="formula-mn-real" class="formula-real"></div>
+							</div>
                         </div>
                     </details>
                     <div class="veredicto">
@@ -362,18 +388,35 @@
 			katex.render(f_vj_r, document.getElementById('formula-vj-real'), {displayMode: true});
 
 			// --- 3. RENDERIZADO KaTeX (SALUD FINANCIERA) ---
+
+						// --- Fórmulas Teóricas (Variables) ---
+			const f_pa_t = String.raw`PA = \frac{\text{Activo Circulante} - \text{Inventarios}}{\text{Pasivo Circulante}}`;
+			const f_rc_t = String.raw`RC = \frac{\text{Activo Circulante}}{\text{Pasivo Circulante}}`;
+			const f_end_t = String.raw`END = \frac{\text{Pasivo Total}}{\text{Activo Total}}`;
+			const f_ci_t = String.raw`CI = \frac{\text{EBIT}}{\text{Gastos de Interés}}`;
+			const f_mn_t = String.raw`MN = \frac{\text{Utilidad Neta}}{\text{Ventas}}`;
 			
+			// --- Renderizar Teóricas ---
+			katex.render(f_pa_t, document.getElementById('formula-pa-teorica'), {displayMode: true});
+			katex.render(f_rc_t, document.getElementById('formula-rc-teorica'), {displayMode: true});
+			katex.render(f_end_t, document.getElementById('formula-end-teorica'), {displayMode: true});
+			katex.render(f_ci_t, document.getElementById('formula-ci-teorica'), {displayMode: true});
+			katex.render(f_mn_t, document.getElementById('formula-mn-teorica'), {displayMode: true});
+
+			// --- Fórmulas Reales ---
 			const f_pa_r = String.raw`PA = \frac{\$ ${fmt(act_circ)} - \$ ${fmt(inv)}}{\$ ${fmt(pas_circ)}} = ${calc_pa.toFixed(2)}`;
 			const f_rc_r = String.raw`RC = \frac{\$ ${fmt(act_circ)}}{\$ ${fmt(pas_circ)}} = ${calc_rc.toFixed(2)}`;
 			const f_end_r = String.raw`END = \frac{\$ ${fmt(pas_tot)}}{\$ ${fmt(act_tot)}} = ${(calc_end * 100).toFixed(1)}\%`;
 			const f_ci_r = String.raw`CI = \frac{\$ ${fmt(ebit)}}{\$ ${fmt(gastos_int)}} = ${calc_ci.toFixed(1)}x`;
 			const f_mn_r = String.raw`MN = \frac{\$ ${fmt(util_neta)}}{\$ ${fmt(ventas)}} = ${(calc_mn * 100).toFixed(1)}\%`;
 
+			// --- Renderizar Reales ---
 			katex.render(f_pa_r, document.getElementById('formula-pa-real'), {displayMode: true});
 			katex.render(f_rc_r, document.getElementById('formula-rc-real'), {displayMode: true});
 			katex.render(f_end_r, document.getElementById('formula-end-real'), {displayMode: true});
 			katex.render(f_ci_r, document.getElementById('formula-ci-real'), {displayMode: true});
 			katex.render(f_mn_r, document.getElementById('formula-mn-real'), {displayMode: true});
+		
 
 			// --- 4. ACTUALIZAR VEREDICTO FINAL ---
 			document.getElementById('veredicto-precio').innerText = "$" + parseFloat(empresa['Precio']).toFixed(2);
