@@ -369,20 +369,6 @@
 			const f_ci_r = String.raw`CI = \frac{\$ ${fmt(ebit)}}{\$ ${fmt(gastos_int)}} = ${calc_ci.toFixed(1)}x`;
 			const f_mn_r = String.raw`MN = \frac{\$ ${fmt(util_neta)}}{\$ ${fmt(ventas)}} = ${(calc_mn * 100).toFixed(1)}\%`;
 
-						// --- Fórmulas Teóricas (Variables) ---
-			const f_pa_t = String.raw`PA = \frac{\text{Activo Circulante} - \text{Inventarios}}{\text{Pasivo Circulante}}`;
-			const f_rc_t = String.raw`RC = \frac{\text{Activo Circulante}}{\text{Pasivo Circulante}}`;
-			const f_end_t = String.raw`END = \frac{\text{Pasivo Total}}{\text{Activo Total}}`;
-			const f_ci_t = String.raw`CI = \frac{\text{EBIT}}{\text{Gastos de Interés}}`;
-			const f_mn_t = String.raw`MN = \frac{\text{Utilidad Neta}}{\text{Ventas}}`;
-
-			// --- Renderizar Teóricas ---
-			katex.render(f_pa_t, document.getElementById('formula-pa-teorica'), {displayMode: true});
-			katex.render(f_rc_t, document.getElementById('formula-rc-teorica'), {displayMode: true});
-			katex.render(f_end_t, document.getElementById('formula-end-teorica'), {displayMode: true});
-			katex.render(f_ci_t, document.getElementById('formula-ci-teorica'), {displayMode: true});
-			katex.render(f_mn_t, document.getElementById('formula-mn-teorica'), {displayMode: true});
-
 			katex.render(f_pa_r, document.getElementById('formula-pa-real'), {displayMode: true});
 			katex.render(f_rc_r, document.getElementById('formula-rc-real'), {displayMode: true});
 			katex.render(f_end_r, document.getElementById('formula-end-real'), {displayMode: true});
